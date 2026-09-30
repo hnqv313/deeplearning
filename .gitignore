@@ -1,0 +1,56 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets and machine-local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+credentials.*.json
+secrets.json
+secrets.*.json
+service-account*.json
+
+# Datasets and generated artifacts
+data/raw/
+data/processed/
+data/processed_clean/
+data/fiftyone/
+data/fiftyone-db/
+outputs/*
+!outputs/comparison.csv
+!outputs/per_seed_results.csv
+!outputs/stage_accuracy.csv
+!outputs/FINAL_RESULTS_PROVENANCE.md
+!outputs/final_figures/
+!outputs/final_figures/*.png
+*.pt
+*.pth
+*.zip
+/comparison.csv
+/continual_dl_colab_bundle/
+/colab_outputs_import_*/
+
+# Local test and scratch directories
+/.pytest-*/
+/.test_tmp*/
+/pytest-cache-files-*/
+/.tmp/
+
+# Local experiment services
+wandb/
+runs/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

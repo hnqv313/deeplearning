@@ -1,0 +1,3 @@
+strategy:
+  name: ncm
+  distance: cosine

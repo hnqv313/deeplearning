@@ -1,0 +1,4 @@
+strategy:
+  name: replay
+  memory_size: 200
+  replay_ratio: 0.5

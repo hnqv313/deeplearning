@@ -1,0 +1,5 @@
+strategy:
+  name: ewc
+  lambda: 100.0
+  gamma: 1.0
+  fisher_batches: 50
