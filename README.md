@@ -4,6 +4,46 @@ Reproducible class-incremental comparison of Naive Fine-tuning, EWC, LwF,
 Replay, Frozen ViT-Tiny + NCM, and cumulative Joint fine-tuning as an
 approximate offline upper bound.
 
+## Method selection
+
+Mean ± std across seeds 42, 123 and 2026. The first six rows share one ImageNet-21k
+backbone; the last three replace it.
+
+| Method | Backbone | Final accuracy (%) | Forgetting (%) | Time (s) | Peak GPU (MiB) |
+|---|---|---:|---:|---:|---:|
+| NCM | ImageNet-21k | 92.67 ± 0.46 | 2.67 ± 0.58 | 42 | 104 |
+| Replay | ImageNet-21k | 91.20 ± 5.01 | 8.50 ± 5.57 | 763 | 646 |
+| Naive | ImageNet-21k | 20.00 ± 0.00 | 96.67 ± 1.04 | 501 | 646 |
+| EWC | ImageNet-21k | 20.00 ± 0.00 | 96.83 ± 0.76 | 552 | 1039 |
+| LwF | ImageNet-21k | 20.00 ± 0.00 | 97.67 ± 0.76 | 491 | 683 |
+| Joint | ImageNet-21k | 95.20 ± 1.39 | 3.00 ± 1.80 | 1247 | 646 |
+| Replay | pre-trained on stage 0 only | 45.60 ± 4.33 | 39.00 ± 5.89 | 766 | 645 |
+| NCM | pre-trained on stage 0 only | 25.47 ± 1.40 | 21.83 ± 4.80 | 237 | 645 |
+| NCM | untrained | 23.47 ± 1.01 | 22.67 ± 2.02 | 51 | 103 |
+
+The two stage 0 rows include the 185 s / 645 MiB pre-training step that produces
+their backbone; that checkpoint is produced once and shared between them.
+
+Of the six methods, only NCM and Replay rise above the 20.00% chance level of a
+five-class problem. Their final accuracies are not separable on this protocol:
+92.67 ± 0.46 against 91.20 ± 5.01, a 1.47-point difference smaller than Replay's
+spread across seeds, and the ordering changes with the seed. On the remaining
+axes NCM is the more effective of the two — 42 s against 763 s wall time, 104 MiB
+against 646 MiB peak GPU memory, 2.67% against 8.50% forgetting, and one stored
+vector per class against 200 stored images.
+
+EWC, LwF and naive fine-tuning all terminate at 20.00% on every seed, so at the
+tested configurations neither parameter regularization nor logit distillation
+improves on plain fine-tuning, and EWC additionally costs 10% more wall time than
+it does. Joint reaches 95.20% but reuses all previous data and is not a continual
+method.
+
+This comparison holds only while the backbone is pre-trained. On a backbone
+trained solely on the first stage, NCM falls to 25.47% while Replay on the same
+checkpoint reaches 45.60%, which reverses the ordering. Measured values per arm
+are in [`RESULTS.md`](RESULTS.md); the threats to this comparison are in
+[`docs/report/LIMITATIONS_AND_THREATS.md`](docs/report/LIMITATIONS_AND_THREATS.md).
+
 ## Protocol
 
 | Stage | New classes | Evaluated classes |
@@ -14,9 +54,10 @@ approximate offline upper bound.
 | 3 | Building | All five classes |
 
 All methods use the same `vit_tiny_patch16_224` backbone, manifests,
-augmentations, class order, and evaluation code. NCM freezes the backbone; all
-gradient-based strategies fine-tune it. The model uses a fixed five-output head
-and masks unseen logits, so no future images or labels participate in training.
+augmentations, class order, and evaluation code, and all start from ImageNet
+weights as described above. NCM freezes the backbone; all gradient-based
+strategies fine-tune it. The model uses a fixed five-output head and masks
+unseen logits, so no future images or labels participate in training.
 
 ## Environment
 

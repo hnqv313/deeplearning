@@ -152,12 +152,15 @@ the backbone:
 | Arm | Backbone | Final accuracy (%) | Avg. incremental (%) | Forgetting (%) | BWT (%) | Time (s) | Peak GPU (MiB) |
 |---|---|---:|---:|---:|---:|---:|---:|
 | ImageNet-21k pretrained | timm default weights | 92.67 ± 0.46 | 92.83 ± 0.19 | 2.67 ± 0.58 | −2.67 ± 0.58 | 42.05 ± 2.62 | 104.16 |
-| Pre-trained on Stage 0 only | random init, then Naive on Dog and Cat | 25.47 ± 1.40 | 39.06 ± 2.35 | 21.83 ± 4.80 | −21.83 ± 4.80 | 236.6 | 103.16 |
+| Pre-trained on Stage 0 only | random init, then Naive on Dog and Cat | 25.47 ± 1.40 | 39.06 ± 2.35 | 21.83 ± 4.80 | −21.83 ± 4.80 | 236.6 | 644.67 |
 | Untrained (random init) | random init, no training | 23.47 ± 1.01 | 35.52 ± 2.09 | 22.67 ± 2.02 | −22.67 ± 2.02 | 50.83 ± 0.49 | 103.16 |
 
 Mean ± sample standard deviation over seeds 42, 123 and 2026. The Stage 0 time
 includes its Naive pre-training run (185.4 s mean) plus its NCM stage (51.2 s); the other two figures cover
-the NCM stage only.
+the NCM stage only. Peak GPU memory for the Stage 0 arm is likewise the maximum across both steps: the
+Naive pre-training run needs 644.67 MiB while the NCM stage alone needs 103.16 MiB, so the arm cannot be run
+in less memory than the pre-training step requires. The Stage 0 checkpoint is produced once and shared with
+the Replay arm below, so the two pre-training costs are not additive.
 
 Average accuracy on seen classes through the stream (%):
 
@@ -225,7 +228,7 @@ the NCM arm above, with `configs/replay.yaml` hyperparameters unchanged.
 | Arm | Final accuracy (%) | Avg. incremental (%) | Forgetting (%) | BWT (%) | Time (s) | Peak GPU (MiB) |
 |---|---:|---:|---:|---:|---:|---:|
 | Replay, ImageNet-21k backbone | 91.20 ± 5.01 | 94.11 ± 0.85 | 8.50 ± 5.57 | −8.17 ± 5.35 | 762.64 ± 5.90 | 645.78 |
-| Replay, Stage 0 pre-trained backbone | 45.60 ± 4.33 | 56.33 ± 2.05 | 39.00 ± 5.89 | −36.33 ± 6.79 | 580.20 ± 3.16 | 644.67 |
+| Replay, Stage 0 pre-trained backbone | 45.60 ± 4.33 | 56.33 ± 2.05 | 39.00 ± 5.89 | −36.33 ± 6.79 | 765.6 | 644.67 |
 
 Average accuracy on seen classes through the stream (%):
 
