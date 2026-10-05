@@ -1,0 +1,40 @@
+# Backbone pre-training stage for the frozen-feature NCM arm.
+#
+# Trains `naive` from random initialization on the Stage 0 classes only, so the
+# backbone learns feature extraction without ever seeing Car, Person or
+# Building. `naive` keeps no extra state, so the stage checkpoint is the only
+# artifact needed to seed NCM afterwards.
+project_name: continual-image-classification-pretrain
+seed: 42
+device: auto
+
+data:
+  train_manifest: data/manifests/train.csv
+  val_manifest: data/manifests/val.csv
+  test_manifest: data/manifests/test.csv
+  image_size: 224
+  num_workers: 2
+  class_order: [dog, cat, car, person, building]
+  stages:
+    - [dog, cat]
+
+model:
+  backbone: vit_tiny_patch16_224
+  pretrained: false
+  num_classes: 5
+  dropout: 0.0
+
+training:
+  batch_size: 32
+  epochs_stage0: 20
+  epochs_incremental: 15
+  optimizer: adamw
+  learning_rate: 0.0001
+  weight_decay: 0.05
+  amp: true
+  reset_optimizer_each_stage: true
+
+evaluation:
+  seeds: [42, 123, 2026]
+  save_checkpoints: true
+  output_dir: outputs/scratch_pretrain

@@ -53,6 +53,8 @@ toàn bộ dữ liệu thì tốn kém, và nhiều khi không làm được vì
    Replay; biểu diễn cố định: NCM) giảm quên được bao nhiêu so với Naive, và cách mốc trên
    Joint bao xa?
 3. Đổi lại, mỗi phương pháp tốn bao nhiêu thời gian, bộ nhớ GPU và bộ nhớ phụ?
+4. Kết quả tốt của NCM đến từ đặc trưng pretrained hay từ bản thân luật NCM? Phép so sánh ba
+   nguồn khởi tạo backbone trả lời câu này (mục 4.5).
 
 ### 1.3. Đóng góp của đồ án
 
@@ -62,6 +64,9 @@ toàn bộ dữ liệu thì tốn kém, và nhiều khi không làm được vì
   giá, 3 seed và cùng loại GPU.
 - Phân tích nguyên nhân thất bại của EWC và LwF dựa trên ma trận nhầm lẫn, và báo cáo đồng
   thời độ chính xác lẫn chi phí.
+- Một phép đo trực tiếp tách phần đóng góp của trọng số pretrained khỏi phần đóng góp của bản
+  thân luật NCM (mục 3.4 và 4.5), bằng ba arm chỉ khác nguồn khởi tạo backbone, cùng dữ liệu,
+  cùng mã đánh giá và cùng seed.
 
 Đồ án **không** đề xuất phương pháp mới. Việc NCM trên đặc trưng pretrained là baseline mạnh
 đã được ghi nhận trong tài liệu [21, 22].
@@ -131,7 +136,28 @@ trên split test chính thức của Open Images.
   5.524.416 tham số. Đặc trưng là token `[CLS]`.
 - Head: `Linear(192, 5)`.
 
-### 3.4. Các phương pháp
+### 3.4. Ba nguồn khởi tạo backbone
+
+Bảng tổng hợp ở mục 4 và mọi phương pháp ở mục 3.5 đều khởi tạo backbone từ trọng số
+`augreg_in21k_ft_in1k`. Vì NCM đóng băng toàn bộ backbone và chỉ dựng prototype từ đặc trưng,
+kết quả của NCM phụ thuộc hoàn toàn vào nguồn gốc đặc trưng, nên đồ án bổ sung hai arm đối chứng
+giữ nguyên dữ liệu, thứ tự class, augmentation, mã đánh giá và seed:
+
+| Arm | Khởi tạo | Cách huấn luyện backbone |
+|---|---|---|
+| Pretrained ImageNet-21k | trọng số mặc định của timm | không huấn luyện (đóng băng) |
+| Pretrain chỉ trên Stage 0 | random init | Naive trên Dog và Cat, 1 stage |
+| Chưa huấn luyện | random init | không huấn luyện (đóng băng) |
+
+Arm thứ hai dùng đúng thuật toán Naive nhưng chỉ trên `data.stages` của Stage 0. Vì NCM không
+tạo optimizer, backbone của arm này phải được huấn luyện ở một bước riêng trước; bước đó lưu
+checkpoint `stage_0.pt`, và bước đánh giá chỉ nạp các tensor `backbone.*`. Head 5 output bị bỏ
+hoàn toàn vì NCM dựng prototype thay cho head. Ba arm ghi ra các cây output riêng
+(`outputs/`, `outputs/scratch/`, `outputs/scratch_random/`) nên không ghi đè lên 18 run đã công bố.
+
+Cả ba arm đã chạy 3 seed. Kết quả ở mục 4.1. Giới hạn của phép so sánh được trình bày ở mục 6.
+
+### 3.5. Các phương pháp
 
 | Phương pháp | Cơ chế trong cài đặt | Dữ liệu cũ được dùng | Trạng thái phụ cần lưu |
 |---|---|---|---|
@@ -146,7 +172,7 @@ Joint **không phải** phương pháp continual learning hợp lệ, vì nó d�
 Lưu ý thêm: Joint ở đây là fine-tune tiếp tục từ stage trước trên dữ liệu gộp, không phải
 huấn luyện lại từ đầu trên 5 class. Vì vậy nó là mốc trên **gần đúng**.
 
-### 3.5. Huấn luyện
+### 3.6. Huấn luyện
 
 | Thiết lập | Giá trị |
 |---|---|
@@ -175,7 +201,7 @@ Ngân sách tính toán khác nhau theo thiết kế. Số bước tối ưu đo
 Replay có gần gấp đôi số bước ở các stage tăng dần, vì mỗi batch chỉ lấy 16 ảnh mới. Joint
 tăng số bước theo lượng dữ liệu gộp.
 
-### 3.6. Metric
+### 3.7. Metric
 
 Gọi `a_{k,j}` là accuracy trên class `j` sau stage `k`, và `A_k` là trung bình của `a_{k,j}`
 trên các class đã thấy. Vì test set cân bằng (50 ảnh/class), `A_k` bằng overall accuracy.
@@ -210,6 +236,9 @@ Kết quả được báo dưới dạng trung bình ± độ lệch chuẩn m�
 | Joint (mốc trên) | 95,20 ± 1,39 | 95,84 ± 0,70 | 3,00 ± 1,80 | −1,83 ± 1,53 | 1247,07 ± 13,54 | 645,78 |
 
 Peak GPU memory giống hệt nhau giữa các seed của cùng phương pháp (độ lệch chuẩn 0).
+
+Hàng cuối cùng dùng backbone pretrained ImageNet-21k. Ba arm so sánh nguồn khởi tạo backbone
+(mục 3.4) được báo cáo riêng ở mục 4.5.
 
 ![Final accuracy](../../outputs/final_figures/final_accuracy.png)
 *Hình 1. Final accuracy trên 5 class.*
@@ -266,6 +295,55 @@ thấp hơn ở seed 123 và 2026. Ở seed 123, Replay chỉ còn 58% trên Dog
 - Bộ nhớ phụ riêng của từng phương pháp nằm ngoài con số GPU ở trên: Replay lưu 200 ảnh; NCM
   lưu 5 vector 192 chiều; EWC lưu Fisher và tham số neo, tương đương 2 bản sao tham số; LwF
   giữ một mô hình teacher trong lúc huấn luyện.
+
+---
+
+### 4.5. So sánh nguồn khởi tạo backbone
+
+Vì NCM đóng băng backbone, kết quả của NCM phụ thuộc hoàn toàn vào nguồn gốc đặc trưng. Ba arm
+dưới đây dùng chung dữ liệu, thứ tự class, augmentation, mã đánh giá và 3 seed; chỉ khác ở
+backbone. Mean ± độ lệch chuẩn mẫu trên seed 42, 123, 2026:
+
+| Arm | Backbone | Final accuracy (%) | Forgetting (%) | Thời gian (s) |
+|---|---|---:|---:|---:|
+| Pretrained ImageNet-21k | trọng số mặc định của timm | 92,67 ± 0,46 | 2,67 ± 0,58 | 42,1 |
+| Pretrain chỉ trên Stage 0 | random init, rồi Naive trên Dog và Cat | 25,47 ± 1,40 | 21,83 ± 4,80 | 236,6 |
+| Chưa huấn luyện | random init, không huấn luyện | 23,47 ± 1,01 | 22,67 ± 2,02 | 50,8 |
+
+Thời gian của arm Stage 0 gồm cả run Naive huấn luyện trước (185,4 s) và giai đoạn NCM (51,2 s).
+
+Accuracy trung bình trên các class đã thấy qua từng stage (%):
+
+| Stage | Số class đã thấy | Pretrained | Pretrain Stage 0 | Chưa huấn luyện |
+|---:|---:|---:|---:|---:|
+| 0 | 2 | 91,00 | 51,67 | 46,67 |
+| 1 | 3 | 94,00 | 45,11 | 41,11 |
+| 2 | 4 | 93,67 | 34,00 | 30,83 |
+| 3 | 5 | 92,67 | 25,47 | 23,47 |
+
+Theo seed, final accuracy (%):
+
+| Arm | 42 | 123 | 2026 |
+|---|---:|---:|---:|
+| Pretrained | 92,40 | 92,40 | 93,20 |
+| Pretrain Stage 0 | 24,00 | 25,60 | 26,80 |
+| Chưa huấn luyện | 23,60 | 22,40 | 24,40 |
+
+![Final accuracy theo nguồn khởi tạo backbone](../../outputs/pretrain_figures/backbone_source_final_accuracy.png)
+*Hình 6. Final accuracy của NCM theo ba nguồn khởi tạo backbone.*
+
+![Accuracy qua từng stage](../../outputs/pretrain_figures/backbone_source_stage_accuracy.png)
+*Hình 7. Accuracy trên class đã thấy qua 4 stage, theo nguồn khởi tạo backbone.*
+
+**Đọc kết quả.** Với cùng luật NCM và cùng dữ liệu, chỉ backbone ImageNet-21k đạt accuracy cạnh
+tranh; hai backbone còn lại nằm gần mức 20% của bài toán 5 class. Vì vậy 92,67% không do bản thân
+luật NCM tạo ra. Đây là câu trả lời trực tiếp cho câu hỏi nghiên cứu 2 ở mục 1.2 về phần đóng góp
+của đặc trưng pretrained.
+
+**Có thể kết luận gì và không thể kết luận gì.** Xem mục 6. Ngắn gọn: arm Stage 0 là giám sát rẻ
+trong miền chứ không phải "không pretrain", và nó **underfit** — chính run Naive của nó chỉ đạt
+57%, 58%, 59% ở Stage 0. Chênh lệch 2,00 điểm giữa arm Stage 0 và arm chưa huấn luyện nằm trong
+nhiễu, vì hai khoảng theo seed có chồng lấn.
 
 ---
 
@@ -332,7 +410,9 @@ các class, không phải từ việc ghi đè tham số.
 Cần diễn giải đúng kết quả này:
 
 - Sức mạnh của NCM đến chủ yếu từ **đặc trưng pretrained trên ImageNet-21k**, vốn đã phân tách
-  tốt năm khái niệm phổ biến này. Kết quả phù hợp với các báo cáo trước [21, 22].
+  tốt năm khái niệm phổ biến này. Kết quả phù hợp với các báo cáo trước [21, 22]. Hai arm đối
+  chứng ở mục 3.4 và được đo trực tiếp ở mục 4.5: với cùng luật NCM và cùng dữ liệu, đổi
+  backbone sang random init làm accuracy rơi từ 92,67% xuống 23,47%.
 - NCM **không** miễn phí: chi phí trích đặc trưng tăng tuyến tính theo số ảnh mới.
 - NCM **không** học được đặc trưng mới. Nếu miền dữ liệu khác xa ImageNet (ảnh y tế, ảnh vệ
   tinh), class tinh (nhiều giống chó), hoặc class đa dạng về hình thức, một prototype mỗi
@@ -374,7 +454,8 @@ Chi tiết trong `docs/report/LIMITATIONS_AND_THREATS.md`. Các điểm chính:
 - Chỉ 3 seed, test set nhỏ (50 ảnh/class), không có kiểm định thống kê.
 - Chỉ một thứ tự class, một giao thức một-class-mỗi-stage.
 - Không tinh chỉnh siêu tham số cho EWC, LwF, Replay.
-- Ảnh crop dễ hơn phân loại cả cảnh. Backbone pretrained trên ImageNet-21k có lợi thế lớn.
+- Ảnh crop dễ hơn phân loại cả cảnh. Lợi thế của backbone pretrained trên ImageNet-21k được đo
+  trực tiếp ở mục 4.5 và là nguyên nhân chính của kết quả NCM; xem mục 6 về phần mối đe dọa còn lại.
 - Joint là fine-tune tiếp tục, không phải huấn luyện lại từ đầu.
 
 ---

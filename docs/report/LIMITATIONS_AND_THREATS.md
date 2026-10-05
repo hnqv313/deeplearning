@@ -136,7 +136,7 @@ thứ tự class; chưa đo được ảnh hưởng này.
 
 ## 4. Tính khái quát (external validity)
 
-### 4.1. Lợi thế pretrain ImageNet-21k — Cao (với kết luận về NCM)
+### 4.1. Lợi thế pretrain ImageNet-21k — Đã đo, xác nhận (kết luận về NCM phải giới hạn)
 
 Trọng số mặc định của `vit_tiny_patch16_224` trong timm (bản local 1.0.30) là
 `augreg_in21k_ft_in1k`: pretrain ImageNet-21k, fine-tune ImageNet-1k [25]. Năm class của đồ án
@@ -146,6 +146,40 @@ chủ yếu phản ánh độ phù hợp giữa miền pretrain và miền dữ 
 **Hệ quả.** Không được khái quát "NCM giải quyết catastrophic forgetting". Kết quả có thể khác
 nhiều với miền xa ImageNet (y tế, vệ tinh, ảnh công nghiệp), class tinh (giống chó), hoặc class
 đa dạng hình thức (Building đã có accuracy NCM thấp thứ hai, 92%).
+
+**Đo trực tiếp, đã hoàn tất.** Vì NCM đóng băng backbone và chỉ dựng prototype từ đặc trưng,
+kết quả của nó phụ thuộc hoàn toàn vào nguồn gốc đặc trưng. Đồ án đã chạy hai arm đối chứng để
+tách phần đóng góp của trọng số ImageNet-21k khỏi phần đóng góp của bản thân luật NCM. Ba arm
+dùng chung dữ liệu, thứ tự class, augmentation, mã đánh giá và seed; chỉ khác ở backbone:
+
+| Arm | Backbone | Final accuracy (%) | Forgetting (%) | Thời gian (s) |
+|---|---|---:|---:|---:|
+| Pretrained ImageNet-21k | trọng số mặc định của timm | 92,67 ± 0,46 | 2,67 ± 0,58 | 42,1 |
+| Pretrain chỉ trên Stage 0 | random init, sau đó Naive trên Dog và Cat | 25,47 ± 1,40 | 21,83 ± 4,80 | 236,6 |
+| Chưa huấn luyện | random init, không huấn luyện | 23,47 ± 1,01 | 22,67 ± 2,02 | 50,8 |
+
+Với cùng luật NCM và cùng dữ liệu, chỉ backbone ImageNet-21k đạt accuracy cạnh tranh; hai
+backbone còn lại nằm gần mức 20% của bài toán 5 class. Vì vậy 92,67% **không** do bản thân luật
+NCM tạo ra. Đây là bằng chứng trực tiếp cho nhận định nêu ở đầu mục, và là lý do kết luận về NCM
+trong báo cáo phải giới hạn ở backbone pretrained.
+
+**Phần mối đe dọa vẫn còn lại.** Mức ảnh hưởng không thể hạ về Thấp. Phép đo trên chỉ chứng minh
+rằng lợi thế lớn nằm ở trọng số ImageNet-21k; nó **không** cho biết kết quả ấy có còn giữ được với
+miền xa ImageNet, class tinh hay class đa dạng hình thức, vì cả ba tình huống đó đều chưa được
+thử.
+
+**Giới hạn của phép đo.** Arm Stage 0 là giám sát rẻ trong miền (800 ảnh, 2 class, 500 bước tối
+ưu), không phải "không pretrain"; nó so 800 ảnh với 21k class và khoảng 300 triệu ảnh, nên đo ảnh
+hưởng của quy mô và độ khớp miền. Arm này **underfit rõ rệt**: chính run Naive của nó chỉ đạt
+57%, 58% và 59% accuracy ở Stage 0, so với 91% của NCM pretrained. Với 800 ảnh, 500 bước,
+AdamW 1e-4, không warmup và không scheduler, đây là công thức fine-tune áp cho random init, chứ
+không phải công thức from-scratch. Do đó **không** được kết luận "ViT không thể huấn luyện từ đầu".
+Thêm vào đó, backbone của arm Stage 0 được huấn luyện đúng trên các crop Dog và Cat dùng để dựng
+prototype, nhưng accuracy cuối theo class của nó lại xếp Dog thấp nhất (11,33%) dù Dog đã được
+huấn luyện — cũng là dấu hiệu đặc trưng chưa học được đặc trưng dùng được. Chênh lệch 2,00 điểm giữa
+arm Stage 0 và arm chưa huấn luyện **nằm trong nhiễu**: theo seed, arm Stage 0 dao động 24,00–26,80
+còn arm chưa huấn luyện dao động 22,40–24,40, hai khoảng có chồng lấn. Ba seed trên tập test 250 ảnh,
+không kiểm định thống kê, nên không có cơ sở thống kê để nói hai arm này khác nhau (mục 2.1).
 
 Phiên bản timm và tag pretrained trên Colab không được ghi trong artifact, nên không thể khôi
 phục chính xác cho 18 run đã hoàn tất. Code hiện tại đã bổ sung hai trường này vào
@@ -190,3 +224,6 @@ pretrained lớn đã được huấn luyện trước đó bằng chi phí rấ
 | Replay với 200 ảnh phục hồi phần lớn hiệu năng nhưng biến thiên lớn | NCM giải quyết catastrophic forgetting nói chung |
 | NCM đạt accuracy tương đương Replay với chi phí thấp hơn nhiều, trên bộ dữ liệu này | NCM không tốn chi phí |
 | Thất bại của LwF đi kèm việc đoán sai sang class mới | Joint là phương pháp continual learning |
+| Kết quả NCM phụ thuộc nặng vào trọng số ImageNet-21k, đã đo trực tiếp ở mục 4.1 | NCM vẫn mạnh khi miền xa ImageNet |
+| | ViT không thể huấn luyện từ đầu (arm Stage 0 chỉ underfit với bộ siêu tham số hiện có) |
+| | Arm Stage 0 và arm chưa huấn luyện khác nhau có ý nghĩa thống kê |

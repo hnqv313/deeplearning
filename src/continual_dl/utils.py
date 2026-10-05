@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from torch import nn
 
 
 def set_seed(seed: int, deterministic: bool = True) -> None:
@@ -43,7 +44,30 @@ def git_commit() -> str | None:
         return None
 
 
-def environment_metadata(device: torch.device, model: torch.nn.Module | None = None) -> dict[str, Any]:
+def backbone_init_metadata(backbone: nn.Module, model_config: dict) -> dict[str, Any]:
+    """Describe where backbone weights actually came from.
+
+    `timm` populates `pretrained_cfg` even when `pretrained=False`, so the tag
+    alone would claim ImageNet weights for a randomly initialized run. Only
+    report a pretrained tag when pretrained weights were requested.
+    """
+    init: dict[str, Any] = {
+        "pretrained": bool(model_config.get("pretrained", True)),
+        "init_checkpoint": model_config.get("init_checkpoint"),
+    }
+    pretrained_config = getattr(backbone, "pretrained_cfg", None)
+    if init["pretrained"] and isinstance(pretrained_config, dict):
+        init["pretrained_model"] = {
+            key: pretrained_config.get(key) for key in ("architecture", "tag", "hf_hub_id")
+        }
+    return init
+
+
+def environment_metadata(
+    device: torch.device,
+    model: torch.nn.Module | None = None,
+    model_config: dict | None = None,
+) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "python_hash_seed": os.environ.get("PYTHONHASHSEED"),
         "torch_version": torch.__version__,
@@ -58,12 +82,7 @@ def environment_metadata(device: torch.device, model: torch.nn.Module | None = N
         metadata["timm_version"] = None
     if model is not None:
         backbone = getattr(model, "backbone", model)
-        pretrained_config = getattr(backbone, "pretrained_cfg", None)
-        if isinstance(pretrained_config, dict):
-            metadata["pretrained_model"] = {
-                key: pretrained_config.get(key)
-                for key in ("architecture", "tag", "hf_hub_id")
-            }
+        metadata["backbone_init"] = backbone_init_metadata(backbone, model_config or {})
     if device.type == "cuda":
         metadata["cuda_device"] = torch.cuda.get_device_name(device)
         metadata["cuda_version"] = torch.version.cuda

@@ -30,9 +30,29 @@ def _project_path(project_root: Path, value: str) -> Path:
     return path if path.is_absolute() else project_root / path
 
 
+def resolve_model_config(model_config: dict, project_root: Path, seed: int) -> dict:
+    """Return a copy of `model_config` with `{seed}` expanded in `init_checkpoint`.
+
+    The copy matters: `--all-seeds` reuses one config dict across seeds, so
+    writing the resolved path back into `model_config` would leak one seed's
+    checkpoint into the next seed's run.
+    """
+    resolved = dict(model_config)
+    checkpoint = resolved.get("init_checkpoint")
+    if checkpoint:
+        resolved["init_checkpoint"] = str(
+            _project_path(project_root, str(checkpoint).format(seed=seed))
+        )
+    return resolved
+
+
 def run_experiment(config: dict, project_root: Path, seed: int) -> dict:
     set_seed(seed)
-    config = {**config, "seed": seed}
+    config = {
+        **config,
+        "seed": seed,
+        "model": resolve_model_config(config["model"], project_root, seed),
+    }
     device = resolve_device(str(config.get("device", "auto")))
     class_order = [str(value) for value in config["data"]["class_order"]]
     class_to_id = {name: index for index, name in enumerate(class_order)}
@@ -56,7 +76,9 @@ def run_experiment(config: dict, project_root: Path, seed: int) -> dict:
     ensure_directory(run_directory / "checkpoints")
     ensure_directory(run_directory / "figures")
     save_json(config, run_directory / "config.json")
-    save_json(environment_metadata(device, model), run_directory / "environment.json")
+    save_json(
+        environment_metadata(device, model, config["model"]), run_directory / "environment.json"
+    )
 
     tracker = ContinualMetricTracker()
     stage_results: list[dict] = []

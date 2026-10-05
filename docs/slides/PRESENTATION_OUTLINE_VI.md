@@ -1,4 +1,4 @@
-# Dàn ý thuyết trình (12 slide, khoảng 12–15 phút)
+# Dàn ý thuyết trình (13 slide, khoảng 13–16 phút)
 
 Số liệu lấy từ `RESULTS.md` và `outputs/*.csv`. Hình lấy từ `outputs/final_figures/`.
 `[TODO]` là chỗ nhóm cần điền.
@@ -139,7 +139,32 @@ baseline mạnh.
 
 ---
 
-## Slide 10. Chi phí
+## Slide 10. NCM mạnh vì đặc trưng pretrained, không phải vì luật NCM
+
+- Cùng luật NCM, cùng dữ liệu, cùng seed; chỉ đổi backbone:
+
+| Backbone | Final accuracy (%) | Forgetting (%) |
+|---|---:|---:|
+| Pretrained ImageNet-21k | 92,67 ± 0,46 | 2,67 ± 0,58 |
+| Random init, Naive trên Stage 0 (800 ảnh) | 25,47 ± 1,40 | 21,83 ± 4,80 |
+| Random init, không huấn luyện | 23,47 ± 1,01 | 22,67 ± 2,02 |
+
+- Hình: `backbone_source_final_accuracy.png` và `backbone_source_stage_accuracy.png`
+- Arm Stage 0 tự huấn luyện backbone bằng đúng thuật toán Naive trên Dog + Cat; NCM không tạo
+  optimizer nên phải huấn luyện riêng rồi nạp `backbone.*` (bỏ head 5 lớp)
+- **Kết luận được:** 92,67% không do bản thân luật NCM tạo ra. Hai backbone không có trọng số
+  ImageNet-21k nằm gần mức ngẫu nhiên 20%
+- **Không kết luận được:** arm Stage 0 là giám sát rẻ trong miền (800 ảnh, 2 class, 500 bước),
+  không phải "không pretrain"; và nó underfit — run Naive của nó chỉ đạt 57–59% ở Stage 0. Không
+  nói "ViT không train được từ đầu"
+- Chênh lệch 2,00 điểm giữa hai arm cuối **nằm trong nhiễu** (khoảng seed có chồng lấn)
+
+**Ghi chú:** Đây là slide trả lời trực tiếp câu hỏi "NCM có ăn gian không?". Nói thẳng: NCM
+không gian lận giao thức, nhưng kết quả của nó phụ thuộc giả định về đặc trưng pretrained.
+
+---
+
+## Slide 11. Chi phí
 
 - Hình: `runtime.png` và `gpu_memory.png`
 - Thời gian phụ thuộc cấu hình epoch; NCM không có bước huấn luyện nào
@@ -152,17 +177,18 @@ baseline mạnh.
 
 ---
 
-## Slide 11. Hạn chế
+## Slide 12. Hạn chế
 
 - Huấn luyện GPU không tất định: Stage 0 giống hệt nhau mà dao động tới 8 điểm (seed 42)
 - 3 seed, test 50 ảnh/class, không kiểm định thống kê
 - Không tinh chỉnh siêu tham số EWC/LwF/Replay
 - Một thứ tự class; giao thức một-class-mỗi-stage là trường hợp cực đoan
-- Ảnh crop, miền gần ImageNet → có lợi cho NCM
+- Ảnh crop, miền gần ImageNet → có lợi cho NCM; lợi thế này đã đo ở slide 10 nhưng chưa thử
+  trên miền xa ImageNet, class tinh hay class đa dạng hình thức
 
 ---
 
-## Slide 12. Kết luận và hướng phát triển
+## Slide 13. Kết luận và hướng phát triển
 
 - Naive quên hoàn toàn; EWC, LwF (cấu hình đã thử) không cứu được trong class-incremental một-head
 - Replay hiệu quả nhưng tốn lưu trữ và biến thiên; NCM rẻ, ổn định, **nhưng phụ thuộc miền
@@ -189,9 +215,11 @@ trên logit class cũ, nên nó giữ Dog so với Cat nhưng không ngăn Car v
 slide 8 cho thấy đúng điều đó.
 
 **3. NCM gần như không học gì, vậy có phải "ăn gian" không?**
-NCM tuân thủ giao thức: không dùng ảnh cũ, chỉ lưu vector trung bình. Nhưng nó dựa vào đặc trưng
-pretrained trên ImageNet-21k, vốn đã biết các khái niệm này. Vì vậy nhóm trình bày nó là baseline
-mạnh cho miền dữ liệu gần ImageNet, không phải lời giải tổng quát.
+NCM tuân thủ giao thức: không dùng ảnh cũ, chỉ lưu vector trung bình. Nhóm đã đo trực tiếp (slide
+10): giữ nguyên luật NCM và dữ liệu, chỉ đổi backbone, accuracy rơi từ 92,67% xuống 23,47% khi
+backbone random init. Vậy NCM không gian lận giao thức, nhưng toàn bộ sức mạnh của nó đến từ giả
+định về đặc trưng pretrained. Đó là lý do nhóm trình bày nó là baseline mạnh cho miền gần
+ImageNet, không phải lời giải tổng quát.
 
 **4. Có thể nói NCM tốt hơn Replay không?**
 Không. Chênh lệch 1,47 điểm nhỏ hơn độ lệch chuẩn 5,01 của Replay, thứ hạng đổi chiều theo seed,

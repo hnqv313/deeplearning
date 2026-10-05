@@ -1,0 +1,11 @@
+# NCM over a backbone pre-trained on Stage 0 only, instead of ImageNet-21k.
+#
+# `{seed}` is expanded by `continual_dl.run` so each seed pairs with the
+# checkpoint produced by the matching `configs/scratch_pretrain.yaml` run.
+# Only `backbone.*` tensors are read; the 5-way head is discarded because NCM
+# predicts from class prototypes.
+strategy:
+  name: ncm
+model:
+  pretrained: false
+  init_checkpoint: outputs/scratch_pretrain/naive/seed_{seed}/checkpoints/stage_0.pt

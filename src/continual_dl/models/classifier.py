@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Sequence
 
 import torch
 from torch import nn
+
+BACKBONE_PREFIX = "backbone."
 
 
 class TinyConvBackbone(nn.Module):
@@ -28,26 +31,60 @@ class TinyConvBackbone(nn.Module):
         return self.network(images)
 
 
-def build_backbone(name: str, pretrained: bool) -> tuple[nn.Module, int]:
+def load_backbone_state(backbone: nn.Module, checkpoint_path: str | Path) -> None:
+    """Copy backbone tensors out of a `continual_dl.run` stage checkpoint.
+
+    Only ``backbone.*`` entries are read, so a checkpoint produced by any
+    gradient-based strategy can seed a frozen-feature strategy that discards
+    the classifier head.
+    """
+    path = Path(checkpoint_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Backbone checkpoint not found: {path}")
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    try:
+        model_state = payload["strategy_state"]["model"]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"Checkpoint has no strategy_state.model entry: {path}") from error
+    backbone_state = {
+        key.removeprefix(BACKBONE_PREFIX): tensor
+        for key, tensor in model_state.items()
+        if key.startswith(BACKBONE_PREFIX)
+    }
+    if not backbone_state:
+        raise ValueError(f"Checkpoint contains no backbone.* weights: {path}")
+    try:
+        backbone.load_state_dict(backbone_state, strict=True)
+    except RuntimeError as error:
+        raise ValueError(
+            f"Backbone weights do not match the configured architecture: {path}"
+        ) from error
+
+
+def build_backbone(
+    name: str, pretrained: bool, init_checkpoint: str | Path | None = None
+) -> tuple[nn.Module, int]:
     if name == "tiny_cnn":
-        backbone = TinyConvBackbone()
-        return backbone, backbone.num_features
-    if name == "resnet18":
+        backbone: nn.Module = TinyConvBackbone()
+        feature_dim = int(backbone.num_features)
+    elif name == "resnet18":
         from torchvision.models import ResNet18_Weights, resnet18
 
         weights = ResNet18_Weights.DEFAULT if pretrained else None
         backbone = resnet18(weights=weights)
         feature_dim = int(backbone.fc.in_features)
         backbone.fc = nn.Identity()
-        return backbone, feature_dim
-    try:
-        import timm
-    except ImportError as error:
-        raise RuntimeError(
-            f"Backbone '{name}' requires timm. Install the project with `pip install -e .`."
-        ) from error
-    backbone = timm.create_model(name, pretrained=pretrained, num_classes=0)
-    feature_dim = int(getattr(backbone, "num_features"))
+    else:
+        try:
+            import timm
+        except ImportError as error:
+            raise RuntimeError(
+                f"Backbone '{name}' requires timm. Install the project with `pip install -e .`."
+            ) from error
+        backbone = timm.create_model(name, pretrained=pretrained, num_classes=0)
+        feature_dim = int(getattr(backbone, "num_features"))
+    if init_checkpoint is not None:
+        load_backbone_state(backbone, init_checkpoint)
     return backbone, feature_dim
 
 
@@ -96,8 +133,11 @@ class ContinualClassifier(nn.Module):
 
 
 def build_classifier(model_config: dict) -> ContinualClassifier:
+    init_checkpoint = model_config.get("init_checkpoint")
     backbone, feature_dim = build_backbone(
-        str(model_config["backbone"]), bool(model_config.get("pretrained", True))
+        str(model_config["backbone"]),
+        bool(model_config.get("pretrained", True)),
+        None if init_checkpoint is None else str(init_checkpoint),
     )
     return ContinualClassifier(
         backbone=backbone,

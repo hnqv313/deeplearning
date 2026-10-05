@@ -142,6 +142,82 @@ of incoming images; performance depends on ImageNet-pretrained features; and
 the method may fail under large domain shift, fine-grained classes or changing
 class distributions.
 
+## Backbone initialization comparison
+
+NCM freezes the backbone and computes prototypes from its features, so its result
+depends entirely on where those features came from. Three arms share the same
+data, class order, augmentations, evaluation code and seeds, and differ only in
+the backbone:
+
+| Arm | Backbone | Final accuracy (%) | Avg. incremental (%) | Forgetting (%) | BWT (%) | Time (s) | Peak GPU (MiB) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| ImageNet-21k pretrained | timm default weights | 92.67 ± 0.46 | 92.83 ± 0.19 | 2.67 ± 0.58 | −2.67 ± 0.58 | 42.05 ± 2.62 | 104.16 |
+| Pre-trained on Stage 0 only | random init, then Naive on Dog and Cat | 25.47 ± 1.40 | 39.06 ± 2.35 | 21.83 ± 4.80 | −21.83 ± 4.80 | 236.6 | 103.16 |
+| Untrained (random init) | random init, no training | 23.47 ± 1.01 | 35.52 ± 2.09 | 22.67 ± 2.02 | −22.67 ± 2.02 | 50.83 ± 0.49 | 103.16 |
+
+Mean ± sample standard deviation over seeds 42, 123 and 2026. The Stage 0 time
+includes its Naive pre-training run (185.4 s mean) plus its NCM stage (51.2 s); the other two figures cover
+the NCM stage only.
+
+Average accuracy on seen classes through the stream (%):
+
+| Stage | Seen classes | Pretrained | Stage 0 pre-trained | Random init |
+|---:|---|---:|---:|---:|
+| 0 | 2 | 91.00 | 51.67 | 46.67 |
+| 1 | 3 | 94.00 | 45.11 | 41.11 |
+| 2 | 4 | 93.67 | 34.00 | 30.83 |
+| 3 | 5 | 92.67 | 25.47 | 23.47 |
+
+Per-seed final accuracy (%):
+
+| Arm | 42 | 123 | 2026 |
+|---|---:|---:|---:|
+| Pretrained | 92.40 | 92.40 | 93.20 |
+| Stage 0 pre-trained | 24.00 | 25.60 | 26.80 |
+| Random init | 23.60 | 22.40 | 24.40 |
+
+Machine-readable values are in `outputs/scratch/*.csv` and
+`outputs/scratch_random/*.csv`; figures are in `outputs/pretrain_figures/`.
+
+### What the comparison establishes
+
+With the NCM rule, the data and the evaluation held fixed, only the ImageNet-21k
+backbone reaches competitive accuracy. The two backbones without those weights
+land near the 20% chance level of a five-class problem, so the published 92.67%
+is not produced by the NCM rule itself. This is direct evidence for the
+ImageNet-21k domain-advantage threat recorded in
+`docs/report/LIMITATIONS_AND_THREATS.md` section 4.1.
+
+### What the comparison does not establish
+
+- **It is not a measurement of pre-training versus no pre-training.** The Stage 0
+  arm is cheap in-domain supervision: 800 images, two classes, 500 optimizer
+  steps. ImageNet-21k is 21k classes and roughly 300M images. The comparison
+  measures the effect of that scale and domain match, nothing more.
+- **The Stage 0 arm underfits, so it does not show that ViT from scratch fails.**
+  Its own Naive run reaches only 57%, 58% and 59% Stage 0 test accuracy, against
+  91% for pretrained NCM. With 800 images, 500 steps, AdamW at 1e-4, no warmup
+  and no learning-rate schedule, the configuration is a fine-tuning recipe being
+  applied to random initialization. A dedicated from-scratch recipe was not
+  tuned, because tuning on validation data is reserved for the compared methods.
+- **The 2.00-point gap over random init is inside the noise floor.** Per-seed
+  Stage 0 values span 24.00 to 26.80 and random-init values span 22.40 to 24.40,
+  so the two ranges overlap. With three seeds and a 250-image test set there is
+  no statistical basis for calling the arms different.
+- **The pretrained arm cannot be broken down per class.** Only the aggregate
+  CSVs are retained for the published 18 runs; the raw `summary.json` files are
+  not in the repository, so per-class accuracies are available for the two new
+  arms only.
+- **Class-level behaviour in the Stage 0 arm is not ordered as expected.** Its
+  final per-class accuracies are Dog 11.33%, Cat 22.00%, Car 39.33%, Person
+  18.67% and Building 36.00%. Dog is the worst class even though Dog was trained
+  on, which is consistent with an underfitted feature extractor rather than with
+  a useful representation of the pre-training classes.
+
+Reproduce with the commands in `README.md` section 5, then summarize each arm
+into `outputs/scratch` and `outputs/scratch_random` and run
+`scripts/plot_pretrain_comparison.py`.
+
 ## Artifact completeness
 
 The complete 18-run directory has been mirrored locally under

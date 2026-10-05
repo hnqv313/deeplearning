@@ -159,6 +159,56 @@ Generate and validate the report figures with:
 This checks the full 6-method × 3-seed × 4-stage matrix and writes five PNG
 figures under `outputs/final_figures/`.
 
+## 5. NCM backbone initialization comparison
+
+The published benchmark initializes every method from ImageNet-21k weights.
+These three commands measure how much of the frozen-feature NCM result comes
+from those weights, by re-running NCM on two other backbones. All other
+settings — data, class order, augmentations, evaluation code and seeds — stay
+identical, and results go to separate output trees so the published run stays
+untouched.
+
+First, pre-train a backbone from random initialization on the Stage 0 classes
+only (`dog` and `cat`), using the same Naive strategy. NCM never trains the
+backbone, so this stage is what gives it something to extract features with:
+
+```powershell
+python -m continual_dl.run --strategy naive --common-config configs/scratch_pretrain.yaml --all-seeds
+```
+
+Then run NCM on that backbone across all four stages, and on a never-trained
+backbone as the floor:
+
+```powershell
+python -m continual_dl.run --strategy ncm --common-config configs/scratch.yaml --strategy-config configs/ncm_scratch_init.yaml --all-seeds
+python -m continual_dl.run --strategy ncm --common-config configs/scratch_random.yaml --all-seeds
+```
+
+`configs/ncm_scratch_init.yaml` expands `{seed}` in `init_checkpoint`, so every
+seed loads the checkpoint produced by the matching pre-training seed. Only the
+`backbone.*` tensors are read; the 5-way head is discarded because NCM predicts
+from class prototypes.
+
+Summarize each arm separately, then build the comparison figures:
+
+```powershell
+python scripts/summarize_results.py --outputs outputs/scratch --output-csv outputs/scratch/comparison.csv
+python scripts/summarize_results.py --outputs outputs/scratch_random --output-csv outputs/scratch_random/comparison.csv
+python scripts/plot_pretrain_comparison.py
+```
+
+This writes four PNG figures under `outputs/pretrain_figures/`. The runtime
+figure adds the Stage 0 pre-training cost to that arm, because the NCM stage
+alone does not include it.
+
+Pre-training is cheap in-domain supervision, not the absence of pre-training: it
+uses 800 images of two classes for 500 optimizer steps, against 21k classes and
+roughly 300M images for ImageNet-21k. That arm reaches 25.47% final accuracy
+against 92.67% for the ImageNet-21k backbone, so the published NCM result does
+not follow from the NCM rule alone. It does not show that a ViT cannot be trained
+from scratch either, because the recipe used here is the fine-tuning one. See
+`RESULTS.md` for the full breakdown and the limits of this comparison.
+
 ## Current verified status
 
 - Final clean dataset: 2,500 crops, exactly 500 per class.
@@ -170,6 +220,9 @@ figures under `outputs/final_figures/`.
   `outputs/colab_runs`; aggregate CSVs are generated directly from them.
 - Frozen ViT-Tiny + NCM reaches 92.67% final accuracy, Replay reaches 91.20%,
   and the approximate Joint upper bound reaches 95.20%.
+- The backbone initialization comparison is complete: three seeds per arm. NCM
+  over a Stage 0 pre-trained backbone reaches 25.47% and over an untrained
+  backbone 23.47%, against 92.67% for the ImageNet-21k backbone.
 - See [`RESULTS.md`](RESULTS.md) for complete mean ± standard deviation tables,
   stage curves, timing and interpretation.
 
@@ -191,7 +244,7 @@ average over Dog, Cat, Car and Person. These are class-level variants, not the
 task-level definitions used by many continual-learning papers; Dog and Cat
 therefore contribute separately even though both arrive in Stage 0.
 
-## 5. Tests
+## 6. Tests
 
 The tests use generated 32×32 images and the local `tiny_cnn` smoke-test
 backbone; they do not download pretrained weights or datasets.

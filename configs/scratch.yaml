@@ -1,0 +1,42 @@
+# Shared configuration for the non-ImageNet backbone arms.
+#
+# Pairs with `configs/ncm_scratch_init.yaml` (backbone pre-trained on Stage 0)
+# and `configs/ncm_random_init.yaml` (untrained backbone). Results are written
+# to a separate tree so the published `outputs/` benchmark stays untouched.
+project_name: continual-image-classification-scratch
+seed: 42
+device: auto
+
+data:
+  train_manifest: data/manifests/train.csv
+  val_manifest: data/manifests/val.csv
+  test_manifest: data/manifests/test.csv
+  image_size: 224
+  num_workers: 2
+  class_order: [dog, cat, car, person, building]
+  stages:
+    - [dog, cat]
+    - [car]
+    - [person]
+    - [building]
+
+model:
+  backbone: vit_tiny_patch16_224
+  pretrained: false
+  num_classes: 5
+  dropout: 0.0
+
+training:
+  batch_size: 32
+  epochs_stage0: 20
+  epochs_incremental: 15
+  optimizer: adamw
+  learning_rate: 0.0001
+  weight_decay: 0.05
+  amp: true
+  reset_optimizer_each_stage: true
+
+evaluation:
+  seeds: [42, 123, 2026]
+  save_checkpoints: false
+  output_dir: outputs/scratch
