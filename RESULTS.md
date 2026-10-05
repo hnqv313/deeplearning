@@ -214,6 +214,64 @@ ImageNet-21k domain-advantage threat recorded in
   on, which is consistent with an underfitted feature extractor rather than with
   a useful representation of the pre-training classes.
 
+## Replay on a non-pretrained backbone
+
+The three arms above isolate the effect of the backbone source while holding the
+method fixed at NCM, which never trains its backbone. Replay does train it, so it
+answers a different question: whether the only gradient-based method that works
+survives without ImageNet weights. It starts from the same Stage 0 checkpoint as
+the NCM arm above, with `configs/replay.yaml` hyperparameters unchanged.
+
+| Arm | Final accuracy (%) | Avg. incremental (%) | Forgetting (%) | BWT (%) | Time (s) | Peak GPU (MiB) |
+|---|---:|---:|---:|---:|---:|---:|
+| Replay, ImageNet-21k backbone | 91.20 ± 5.01 | 94.11 ± 0.85 | 8.50 ± 5.57 | −8.17 ± 5.35 | 762.64 ± 5.90 | 645.78 |
+| Replay, Stage 0 pre-trained backbone | 45.60 ± 4.33 | 56.33 ± 2.05 | 39.00 ± 5.89 | −36.33 ± 6.79 | 580.20 ± 3.16 | 644.67 |
+
+Average accuracy on seen classes through the stream (%):
+
+| Stage | Seen classes | Replay, pretrained | Replay, Stage 0 pre-trained |
+|---:|---|---:|---:|
+| 0 | 2 | 96.67 | 56.67 |
+| 1 | 3 | 95.56 | 64.22 |
+| 2 | 4 | 93.00 | 58.83 |
+| 3 | 5 | 91.20 | 45.60 |
+
+Per-seed final accuracy (%): 50.40 (seed 42), 44.40 (seed 123), 42.00 (seed 2026),
+against 96.00, 86.00 and 91.60 for the pretrained backbone. Per-seed forgetting (%):
+32.5, 44.0 and 40.5, against 3.5, 14.5 and 7.5.
+
+Final per-class accuracies of the Stage 0 arm (%): Building 82.00, Cat 41.33,
+Dog 38.67, Person 36.67, Car 29.33.
+
+### What this establishes
+
+Rehearsal is markedly more robust than frozen prototypes when the backbone is
+weak. Both arms start from the same checkpoint, so the 20.13-point difference
+between Replay at 45.60% and NCM at 25.47% is attributable to fine-tuning with a
+200-image memory rather than freezing the backbone. Both non-pretrained arms also
+remain above EWC and LwF, which reach 20.00% while using ImageNet weights.
+
+### What this does not establish
+
+- **Replay does depend heavily on pretrained features.** It loses 45.60 points,
+  more than half its accuracy, and its forgetting grows from 8.50% to 39.00%. So
+  the benchmark's success is not solely an artefact of pre-training, but
+  pre-training roughly doubles what the method achieves.
+- **The 45.60% figure is a floor imposed by the recipe, not by Replay.** The
+  configuration is the fine-tuning one: AdamW at 1e-4, 20 epochs on Stage 0 and
+  15 afterwards, no warmup, no learning-rate schedule, 500 steps on Stage 0.
+  Stage 0 accuracy of this arm is 56.67% against 96.67% for the pretrained
+  backbone, so it starts from a much weaker model and never catches up. A
+  from-scratch recipe was not tuned, because tuning is reserved on validation
+  data for the compared methods.
+- **The Stage 0 arms do not all trace back to one identical Stage 0 run.** The
+  pre-training runs scored 57.00%, 58.00% and 59.00% on Stage 0, while this arm
+  scored 55.00%, 58.00% and 57.00% from the same checkpoints and seed. At Stage 0
+  Replay should be equivalent to Naive, so the 0 to 2 point gap is the GPU
+  non-determinism already recorded in `LIMITATIONS` section 1.1.
+- **Three seeds, no statistical test.** The 45.60% mean carries a 4.33 point
+  standard deviation.
+
 Reproduce with the commands in `README.md` section 5, then summarize each arm
 into `outputs/scratch` and `outputs/scratch_random` and run
 `scripts/plot_pretrain_comparison.py`.

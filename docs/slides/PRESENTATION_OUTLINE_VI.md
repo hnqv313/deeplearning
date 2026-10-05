@@ -1,4 +1,4 @@
-# Dàn ý thuyết trình (13 slide, khoảng 13–16 phút)
+# Dàn ý thuyết trình (14 slide, khoảng 14–17 phút)
 
 Số liệu lấy từ `RESULTS.md` và `outputs/*.csv`. Hình lấy từ `outputs/final_figures/`.
 `[TODO]` là chỗ nhóm cần điền.
@@ -149,7 +149,8 @@ baseline mạnh.
 | Random init, Naive trên Stage 0 (800 ảnh) | 25,47 ± 1,40 | 21,83 ± 4,80 |
 | Random init, không huấn luyện | 23,47 ± 1,01 | 22,67 ± 2,02 |
 
-- Hình: `backbone_source_final_accuracy.png` và `backbone_source_stage_accuracy.png`
+- Hình: `backbone_source_final_accuracy.png`, `backbone_source_stage_accuracy.png`,
+  `backbone_source_forgetting.png`, `backbone_source_runtime.png`
 - Arm Stage 0 tự huấn luyện backbone bằng đúng thuật toán Naive trên Dog + Cat; NCM không tạo
   optimizer nên phải huấn luyện riêng rồi nạp `backbone.*` (bỏ head 5 lớp)
 - **Kết luận được:** 92,67% không do bản thân luật NCM tạo ra. Hai backbone không có trọng số
@@ -164,7 +165,32 @@ không gian lận giao thức, nhưng kết quả của nó phụ thuộc giả 
 
 ---
 
-## Slide 11. Chi phí
+## Slide 11. Replay có cần trọng số pretrained không?
+
+- Cùng checkpoint Stage 0, cùng siêu tham số Replay (bộ nhớ 200 ảnh, ratio 0,5):
+
+| Arm | Final accuracy (%) | Forgetting (%) |
+|---|---:|---:|
+| Replay, backbone pretrained | 91,20 ± 5,01 | 8,50 ± 5,57 |
+| Replay, backbone pretrain Stage 0 | 45,60 ± 4,33 | 39,00 ± 5,89 |
+| NCM, backbone pretrain Stage 0 (mục 10) | 25,47 ± 1,40 | 21,83 ± 4,80 |
+
+- **Replay bền hơn NCM nhiều khi đặc trưng yếu**: cùng một backbone, Replay hơn NCM 20,13 điểm
+  → rehearsal thắng prototype đóng băng
+- **Nhưng Replay vẫn mất hơn một nửa**: 91,20% → 45,60%. Thành công của benchmark không chỉ do
+  thuật toán chống quên, phần lớn đến từ trọng số pretrained
+- 45,60% là **sàn do siêu tham số**, không phải năng lực của Replay: đây là công thức fine-tune,
+  và Stage 0 của arm này chỉ 56,67% (so với 96,67% khi có pretrained)
+- Per-class cuối: Building 82,00 nhưng Car chỉ 29,33
+- Hình: `method_backbone_comparison.png` — 4 thanh (NCM/Replay × ImageNet-21k/stage 0), cho
+  thấy cả hai đều giảm mạnh nhưng Replay giữ được nhiều hơn
+
+**Ghi chú:** Đây là câu trả lời cho "phương pháp gradient duy nhất chạy được có phụ thuộc ImageNet
+không?". Câu trả lời: có, nhưng nó vẫn học được điều gì đó thật sự, không chỉ là ăn theo đặc trưng.
+
+---
+
+## Slide 12. Chi phí
 
 - Hình: `runtime.png` và `gpu_memory.png`
 - Thời gian phụ thuộc cấu hình epoch; NCM không có bước huấn luyện nào
@@ -177,7 +203,7 @@ không gian lận giao thức, nhưng kết quả của nó phụ thuộc giả 
 
 ---
 
-## Slide 12. Hạn chế
+## Slide 13. Hạn chế
 
 - Huấn luyện GPU không tất định: Stage 0 giống hệt nhau mà dao động tới 8 điểm (seed 42)
 - 3 seed, test 50 ảnh/class, không kiểm định thống kê
@@ -188,11 +214,13 @@ không gian lận giao thức, nhưng kết quả của nó phụ thuộc giả 
 
 ---
 
-## Slide 13. Kết luận và hướng phát triển
+## Slide 14. Kết luận và hướng phát triển
 
 - Naive quên hoàn toàn; EWC, LwF (cấu hình đã thử) không cứu được trong class-incremental một-head
 - Replay hiệu quả nhưng tốn lưu trữ và biến thiên; NCM rẻ, ổn định, **nhưng phụ thuộc miền
   pretrain**
+- Cả Replay lẫn NCM đều mất phần lớn accuracy khi bỏ trọng số pretrained (91,20→45,60 và
+  92,67→25,47), nhưng Replay vẫn học được khi backbone yếu, NCM thì không
 - Hướng tiếp: tinh chỉnh `λ`, `α`; thêm hiệu chỉnh bias (BiC, WA); herding cho Replay; miền dữ
   liệu xa ImageNet; chạy tất định và nhiều seed hơn
 

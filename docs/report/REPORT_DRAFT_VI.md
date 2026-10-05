@@ -55,6 +55,8 @@ toàn bộ dữ liệu thì tốn kém, và nhiều khi không làm được vì
 3. Đổi lại, mỗi phương pháp tốn bao nhiêu thời gian, bộ nhớ GPU và bộ nhớ phụ?
 4. Kết quả tốt của NCM đến từ đặc trưng pretrained hay từ bản thân luật NCM? Phép so sánh ba
    nguồn khởi tạo backbone trả lời câu này (mục 4.5).
+5. Phương pháp gradient duy nhất đang hoạt động (Replay) có sống sót khi mất trọng số
+   pretrained không, và rehearsal có bền hơn prototype đóng băng không (mục 4.6)?
 
 ### 1.3. Đóng góp của đồ án
 
@@ -67,6 +69,8 @@ toàn bộ dữ liệu thì tốn kém, và nhiều khi không làm được vì
 - Một phép đo trực tiếp tách phần đóng góp của trọng số pretrained khỏi phần đóng góp của bản
   thân luật NCM (mục 3.4 và 4.5), bằng ba arm chỉ khác nguồn khởi tạo backbone, cùng dữ liệu,
   cùng mã đánh giá và cùng seed.
+- Một phép đo tiếp theo trên cùng checkpoint Stage 0, so Replay với NCM (mục 4.6), cho phép
+  so sánh rehearsal với biểu diễn đóng băng khi đặc trưng yếu.
 
 Đồ án **không** đề xuất phương pháp mới. Việc NCM trên đặc trưng pretrained là baseline mạnh
 đã được ghi nhận trong tài liệu [21, 22].
@@ -155,7 +159,18 @@ checkpoint `stage_0.pt`, và bước đánh giá chỉ nạp các tensor `backbo
 hoàn toàn vì NCM dựng prototype thay cho head. Ba arm ghi ra các cây output riêng
 (`outputs/`, `outputs/scratch/`, `outputs/scratch_random/`) nên không ghi đè lên 18 run đã công bố.
 
-Cả ba arm đã chạy 3 seed. Kết quả ở mục 4.1. Giới hạn của phép so sánh được trình bày ở mục 6.
+Ở Stage 0, EWC chưa có Fisher, LwF chưa có teacher, Replay chưa có bộ nhớ, nên cả sáu phương
+pháp cho ra cùng một backbone. Vì vậy chỉ cần một checkpoint Naive ở Stage 0 là đủ dùng cho
+mọi phương pháp, và cờ `--init-config` cho phép nạp checkpoint đó mà không phải chép lại siêu
+tham số của từng phương pháp.
+
+**Quy tắc chống rò rỉ.** Backbone nạp vào một phương pháp tại stage *k* chỉ được phép đã huấn
+luyện trên các class 0..*k*. Checkpoint `stage_0.pt` (chỉ Dog và Cat) là hợp lệ cho cả stream bốn
+stage. Ngược lại, nạp checkpoint của stage *k* với *k* > 0 rồi chạy stage 0..3 sẽ trao cho
+phương pháp tri thức về các class mà nó chưa được giới thiệu, tức là làm sai giao thức.
+
+Các arm đã chạy 3 seed. Kết quả ở mục 4.5 và 4.6. Giới hạn của phép so sánh được trình bày ở
+mục 6.
 
 ### 3.5. Các phương pháp
 
@@ -238,7 +253,7 @@ Kết quả được báo dưới dạng trung bình ± độ lệch chuẩn m�
 Peak GPU memory giống hệt nhau giữa các seed của cùng phương pháp (độ lệch chuẩn 0).
 
 Hàng cuối cùng dùng backbone pretrained ImageNet-21k. Ba arm so sánh nguồn khởi tạo backbone
-(mục 3.4) được báo cáo riêng ở mục 4.5.
+(mục 3.4) được báo cáo riêng ở mục 4.5 và 4.6.
 
 ![Final accuracy](../../outputs/final_figures/final_accuracy.png)
 *Hình 1. Final accuracy trên 5 class.*
@@ -335,6 +350,13 @@ Theo seed, final accuracy (%):
 ![Accuracy qua từng stage](../../outputs/pretrain_figures/backbone_source_stage_accuracy.png)
 *Hình 7. Accuracy trên class đã thấy qua 4 stage, theo nguồn khởi tạo backbone.*
 
+![Forgetting](../../outputs/pretrain_figures/backbone_source_forgetting.png)
+*Hình 8. Forgetting của NCM theo nguồn khởi tạo backbone.*
+
+![Thời gian](../../outputs/pretrain_figures/backbone_source_runtime.png)
+*Hình 9. Thời gian chạy của NCM; cột "pre-trained on stage 0 only" đã cộng thêm thời gian
+huấn luyện backbone ở bước trước.*
+
 **Đọc kết quả.** Với cùng luật NCM và cùng dữ liệu, chỉ backbone ImageNet-21k đạt accuracy cạnh
 tranh; hai backbone còn lại nằm gần mức 20% của bài toán 5 class. Vì vậy 92,67% không do bản thân
 luật NCM tạo ra. Đây là câu trả lời trực tiếp cho câu hỏi nghiên cứu 2 ở mục 1.2 về phần đóng góp
@@ -344,6 +366,44 @@ của đặc trưng pretrained.
 trong miền chứ không phải "không pretrain", và nó **underfit** — chính run Naive của nó chỉ đạt
 57%, 58%, 59% ở Stage 0. Chênh lệch 2,00 điểm giữa arm Stage 0 và arm chưa huấn luyện nằm trong
 nhiễu, vì hai khoảng theo seed có chồng lấn.
+
+### 4.6. Replay với backbone không pretrained
+
+Ba arm ở mục 4.5 giữ nguyên phương pháp là NCM, vốn không bao giờ huấn luyện backbone. Replay thì
+có, nên mục này trả lời câu hỏi khác: phương pháp gradient duy nhất đang hoạt động có sống sót
+khi mất trọng số pretrained không. Replay khởi đầu từ đúng checkpoint Stage 0 của arm mục 4.5 và
+giữ nguyên toàn bộ siêu tham số trong `configs/replay.yaml`.
+
+| Arm | Backbone | Final accuracy (%) | Forgetting (%) | Thời gian (s) |
+|---|---|---:|---:|---:|
+| Replay | Pretrained ImageNet-21k | 91,20 ± 5,01 | 8,50 ± 5,57 | 762,6 |
+| Replay | Pretrain chỉ trên Stage 0 | 45,60 ± 4,33 | 39,00 ± 5,89 | 580,2 |
+
+Accuracy trên các class đã thấy qua từng stage (%):
+
+| Stage | Số class đã thấy | Replay pretrained | Replay pretrain Stage 0 |
+|---:|---:|---:|---:|
+| 0 | 2 | 96,67 | 56,67 |
+| 1 | 3 | 95,56 | 64,22 |
+| 2 | 4 | 93,00 | 58,83 |
+| 3 | 5 | 91,20 | 45,60 |
+
+Theo seed, final accuracy của arm Stage 0 là 50,40 (seed 42), 44,40 (seed 123) và 42,00
+(seed 2026), so với 96,00, 86,00 và 91,60 của arm pretrained. Per-class cuối của arm Stage 0:
+Building 82,00; Cat 41,33; Dog 38,67; Person 36,67; Car 29,33.
+
+![So sánh method và backbone](../../outputs/pretrain_figures/method_backbone_comparison.png)
+*Hình 10. Final accuracy và forgetting của NCM và Replay trên hai nguồn backbone.*
+
+**Đọc kết quả.** Hai arm này cùng xuất phát từ một checkpoint, nên chênh lệch 20,13 điểm giữa
+Replay (45,60%) và NCM (25,47%) là do fine-tune kèm bộ nhớ 200 ảnh, không phải do nguồn
+backbone. Rehearsal vì vậy bền hơn nhiều so với prototype đóng băng khi đặc trưng yếu. Cả hai
+arm không pretrained đều vẫn cao hơn EWC và LwF, vốn chỉ đạt 20,00% dù có trọng số ImageNet.
+
+**Nhưng Replay vẫn phụ thuộc mạnh vào đặc trưng pretrained.** Nó mất 45,60 điểm, tức hơn một
+nửa, và forgetting tăng từ 8,50% lên 39,00%. Thêm vào đó con số 45,60% phải đọc là sàn do bộ
+siêu tham số, không phải năng lực của Replay: đây là công thức fine-tune (AdamW 1e-4, 500 bước ở
+Stage 0), và accuracy Stage 0 của arm này chỉ 56,67% so với 96,67% của arm pretrained.
 
 ---
 

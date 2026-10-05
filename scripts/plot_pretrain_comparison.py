@@ -1,8 +1,8 @@
-"""Compare NCM across three backbone initializations.
+"""Compare NCM and Replay across backbone initializations.
 
-Reads the report CSVs of the published benchmark plus the two non-ImageNet
-arms and writes one PNG per view. Every input is validated before plotting, so
-a missing or incomplete arm fails with the command needed to produce it.
+Reads the report CSVs of the published benchmark plus the non-ImageNet arms and
+writes one PNG per view. Every input is validated before plotting, so a missing
+or incomplete arm fails with the command needed to produce it.
 """
 
 from __future__ import annotations
@@ -26,6 +26,14 @@ ARMS = (
     ("Untrained (random init)", "#e67e22"),
 )
 
+METHOD_ARMS_LABELS = (
+    "NCM\nImageNet-21k",
+    "NCM\nstage 0",
+    "Replay\nImageNet-21k",
+    "Replay\nstage 0",
+)
+METHOD_ARMS_COLORS = ("#2c3e50", "#16a085", "#5dade2", "#48c9b0")
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -43,7 +51,7 @@ def _stat(row: pd.Series, column: str) -> float:
     return float(row[column])
 
 
-def _load(directory: Path, label: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _load_strategy(directory: Path, label: str, strategy: str) -> tuple[pd.Series, pd.DataFrame]:
     comparison_path = directory / "comparison.csv"
     stage_path = directory / "stage_accuracy.csv"
     for path in (comparison_path, stage_path):
@@ -55,25 +63,51 @@ def _load(directory: Path, label: str) -> tuple[pd.DataFrame, pd.DataFrame]:
             )
     comparison = pd.read_csv(comparison_path)
     stage = pd.read_csv(stage_path)
-    if "ncm" not in set(comparison["strategy"]):
-        raise SystemExit(f"{comparison_path} has no 'ncm' row")
-    per_seed = stage[stage["strategy"] == "ncm"].copy()
+    if strategy not in set(comparison["strategy"]):
+        raise SystemExit(f"{comparison_path} has no '{strategy}' row")
+    per_seed = stage[stage["strategy"] == strategy].copy()
     seeds = set(per_seed["seed"])
     if seeds != EXPECTED_SEEDS:
         raise SystemExit(
-            f"{stage_path} 'ncm' seeds are {sorted(seeds)}, expected {sorted(EXPECTED_SEEDS)}"
+            f"{stage_path} '{strategy}' seeds are {sorted(seeds)}, "
+            f"expected {sorted(EXPECTED_SEEDS)}"
         )
     observed = per_seed.groupby("seed")["stage"].apply(lambda values: set(values))
     if any(values != EXPECTED_STAGES for values in observed):
-        raise SystemExit(f"{stage_path} 'ncm' runs must each contain stages 0-3")
+        raise SystemExit(f"{stage_path} '{strategy}' runs must each contain stages 0-3")
     values = per_seed["average_accuracy"]
     if ((values < 0) | (values > 1)).any():
         raise SystemExit(f"{stage_path} contains accuracy outside [0, 1]")
-    return comparison, per_seed
+    return comparison[comparison["strategy"] == strategy].iloc[0], per_seed
 
 
-def _mean_row(comparison: pd.DataFrame) -> pd.Series:
-    return comparison.set_index("strategy").loc["ncm"]
+def _load(directory: Path, label: str) -> tuple[pd.Series, pd.DataFrame]:
+    return _load_strategy(directory, label, "ncm")
+
+
+def _mean_row(comparison: pd.Series) -> pd.Series:
+    return comparison
+
+
+def save_method_comparison(rows: list[pd.Series], output_dir: Path) -> None:
+    figure, axes = plt.subplots(1, 2, figsize=(13, 5.0))
+    for axis, column, ylabel, filename in (
+        (axes[0], "final_average_accuracy_mean", "Final average accuracy (%)", "final_accuracy"),
+        (axes[1], "mean_forgetting_mean", "Mean forgetting (percentage points)", "forgetting"),
+    ):
+        means = [_stat(row, column) * 100 for row in rows]
+        stds = [_stat(row, column.replace("_mean", "_std")) * 100 for row in rows]
+        bars = axis.bar(
+            METHOD_ARMS_LABELS, means, yerr=stds, capsize=4, color=METHOD_ARMS_COLORS, width=0.6
+        )
+        axis.set_ylabel(ylabel)
+        axis.set_ylim(0, 103)
+        axis.grid(axis="y", alpha=0.25)
+        axis.bar_label(bars, labels=[f"{value:.1f}" for value in bars.datavalues], padding=3)
+        axis.tick_params(axis="x", labelsize=8)
+    figure.tight_layout()
+    figure.savefig(output_dir / "method_backbone_comparison.png", dpi=220)
+    plt.close(figure)
 
 
 def _pretraining_seconds(directory: Path) -> float:
@@ -177,20 +211,22 @@ def save_runtime(rows: list[pd.Series], pretraining_seconds: float, output_dir: 
 
 def main() -> None:
     args = parse_args()
-    pretrained_comparison, pretrained_stage = _load(args.pretrained_dir, "ImageNet-21k pretrained")
-    stage0_comparison, stage0_stage = _load(args.scratch_dir, "stage 0")
-    random_comparison, random_stage = _load(args.random_dir, "untrained (random init)")
-    rows = [
-        _mean_row(pretrained_comparison),
-        _mean_row(stage0_comparison),
-        _mean_row(random_comparison),
-    ]
+    pretrained_ncm, pretrained_stage = _load(args.pretrained_dir, "ImageNet-21k pretrained")
+    stage0_ncm, stage0_stage = _load(args.scratch_dir, "stage 0")
+    random_ncm, random_stage = _load(args.random_dir, "untrained (random init)")
+    rows = [_mean_row(pretrained_ncm), _mean_row(stage0_ncm), _mean_row(random_ncm)]
     args.output_dir.mkdir(parents=True, exist_ok=True)
     save_final_accuracy(rows, args.output_dir)
     save_forgetting(rows, args.output_dir)
     save_stage_accuracy([pretrained_stage, stage0_stage, random_stage], args.output_dir)
     save_runtime(rows, _pretraining_seconds(args.stage0_pretrain_dir), args.output_dir)
-    print(f"Validated three NCM backbone arms and wrote four figures to {args.output_dir}")
+
+    pretrained_replay, _ = _load_strategy(args.pretrained_dir, "ImageNet-21k pretrained", "replay")
+    stage0_replay, _ = _load_strategy(args.scratch_dir, "stage 0", "replay")
+    save_method_comparison(
+        [pretrained_ncm, stage0_ncm, pretrained_replay, stage0_replay], args.output_dir
+    )
+    print(f"Validated three NCM backbone arms and wrote five figures to {args.output_dir}")
 
 
 if __name__ == "__main__":

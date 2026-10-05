@@ -1,0 +1,14 @@
+# Start from a backbone trained on Stage 0 instead of ImageNet-21k weights.
+#
+# Valid for the full four-stage stream: the referenced checkpoint is produced by
+# `configs/scratch_pretrain.yaml`, which declares only the Stage 0 classes, so the
+# backbone never sees Car, Person or Building before the method reaches them.
+#
+# A checkpoint from a later stage must not be used here. Loading stage_k weights and
+# then running stages 0..3 would hand the method knowledge of future classes.
+#
+# `{seed}` is expanded by `continual_dl.run`, so each seed pairs with the checkpoint
+# from the matching pre-training seed.
+model:
+  pretrained: false
+  init_checkpoint: outputs/scratch_pretrain/naive/seed_{seed}/checkpoints/stage_0.pt

@@ -159,35 +159,44 @@ Generate and validate the report figures with:
 This checks the full 6-method × 3-seed × 4-stage matrix and writes five PNG
 figures under `outputs/final_figures/`.
 
-## 5. NCM backbone initialization comparison
+## 5. Backbone initialization comparison
 
 The published benchmark initializes every method from ImageNet-21k weights.
-These three commands measure how much of the frozen-feature NCM result comes
-from those weights, by re-running NCM on two other backbones. All other
-settings — data, class order, augmentations, evaluation code and seeds — stay
-identical, and results go to separate output trees so the published run stays
-untouched.
+These commands measure how much of each result comes from those weights. All
+other settings — data, class order, augmentations, evaluation code and seeds —
+stay identical, and results go to separate output trees so the published run
+stays untouched.
 
 First, pre-train a backbone from random initialization on the Stage 0 classes
-only (`dog` and `cat`), using the same Naive strategy. NCM never trains the
-backbone, so this stage is what gives it something to extract features with:
+only (`dog` and `cat`), using the Naive strategy. NCM never trains its
+backbone, so this stage is what gives NCM something to extract features with.
+At Stage 0 every method is equivalent — EWC has no Fisher yet, LwF no teacher,
+Replay no memory — so one Naive checkpoint serves all of them:
 
 ```powershell
 python -m continual_dl.run --strategy naive --common-config configs/scratch_pretrain.yaml --all-seeds
 ```
 
-Then run NCM on that backbone across all four stages, and on a never-trained
-backbone as the floor:
+Then run NCM on that backbone, Replay on the same backbone, and NCM on a
+never-trained backbone as the floor. `--init-config` is merged after the
+strategy config, so it overrides the backbone without restating that strategy's
+hyperparameters:
 
 ```powershell
-python -m continual_dl.run --strategy ncm --common-config configs/scratch.yaml --strategy-config configs/ncm_scratch_init.yaml --all-seeds
-python -m continual_dl.run --strategy ncm --common-config configs/scratch_random.yaml --all-seeds
+python -m continual_dl.run --strategy ncm    --common-config configs/scratch.yaml        --init-config configs/init_stage0_backbone.yaml --all-seeds
+python -m continual_dl.run --strategy replay --common-config configs/scratch.yaml        --init-config configs/init_stage0_backbone.yaml --all-seeds
+python -m continual_dl.run --strategy ncm    --common-config configs/scratch_random.yaml --all-seeds
 ```
 
-`configs/ncm_scratch_init.yaml` expands `{seed}` in `init_checkpoint`, so every
-seed loads the checkpoint produced by the matching pre-training seed. Only the
-`backbone.*` tensors are read; the 5-way head is discarded because NCM predicts
-from class prototypes.
+`configs/init_stage0_backbone.yaml` expands `{seed}` in `init_checkpoint`, so
+every seed loads the checkpoint produced by the matching pre-training seed. Only
+the `backbone.*` tensors are read; the 5-way head is discarded because NCM
+predicts from class prototypes.
+
+A checkpoint from a later stage must not be used as `init_checkpoint`. Loading
+stage_k weights and then running stages 0 through 3 would hand the method
+knowledge of classes it has not been introduced to yet. Only the Stage 0
+checkpoint is valid for the full stream.
 
 Summarize each arm separately, then build the comparison figures:
 
@@ -223,6 +232,9 @@ from scratch either, because the recipe used here is the fine-tuning one. See
 - The backbone initialization comparison is complete: three seeds per arm. NCM
   over a Stage 0 pre-trained backbone reaches 25.47% and over an untrained
   backbone 23.47%, against 92.67% for the ImageNet-21k backbone.
+- Replay on the same Stage 0 backbone reaches 45.60%, against 91.20% with
+  ImageNet weights. Rehearsal is the more robust of the two when features are
+  weak, but both lose more than half their accuracy without pre-training.
 - See [`RESULTS.md`](RESULTS.md) for complete mean ± standard deviation tables,
   stage curves, timing and interpretation.
 

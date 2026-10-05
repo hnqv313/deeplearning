@@ -1,7 +1,7 @@
 # Shared configuration for the non-ImageNet backbone arms.
 #
-# Pairs with `configs/ncm_scratch_init.yaml` (backbone pre-trained on Stage 0)
-# and `configs/ncm_random_init.yaml` (untrained backbone). Results are written
+# Pairs with `configs/init_stage0_backbone.yaml` (backbone pre-trained on Stage 0)
+# and `configs/scratch_random.yaml` (untrained backbone). Results are written
 # to a separate tree so the published `outputs/` benchmark stays untouched.
 project_name: continual-image-classification-scratch
 seed: 42

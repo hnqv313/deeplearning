@@ -163,10 +163,22 @@ backbone còn lại nằm gần mức 20% của bài toán 5 class. Vì vậy 92
 NCM tạo ra. Đây là bằng chứng trực tiếp cho nhận định nêu ở đầu mục, và là lý do kết luận về NCM
 trong báo cáo phải giới hạn ở backbone pretrained.
 
-**Phần mối đe dọa vẫn còn lại.** Mức ảnh hưởng không thể hạ về Thấp. Phép đo trên chỉ chứng minh
-rằng lợi thế lớn nằm ở trọng số ImageNet-21k; nó **không** cho biết kết quả ấy có còn giữ được với
-miền xa ImageNet, class tinh hay class đa dạng hình thức, vì cả ba tình huống đó đều chưa được
-thử.
+**Mở rộng sang Replay.** Vì NCM không bao giờ huấn luyện backbone, mục trên chỉ trả lời cho NCM.
+Đồ án đã chạy thêm Replay trên đúng checkpoint Stage 0 đó, giữ nguyên siêu tham số của Replay:
+91,20 ± 5,01% khi có trọng số ImageNet-21k, xuống **45,60 ± 4,33%** khi không, forgetting tăng từ
+8,50% lên 39,00%. Rehearsal vì vậy bền hơn prototype đóng băng trên cùng một backbone yếu
+(45,60% so với 25,47%), nhưng Replay vẫn mất hơn một nửa accuracy. Thành công của benchmark do
+đó không chỉ là hệ quả của thuật toán chống quên, mà phần lớn đến từ trọng số pretrained; đồng
+thời nó cũng không phải đặc trưng riêng của NCM, vì Replay cũng hưởng lợi rõ rệt.
+
+Con số 45,60% là sàn do bộ siêu tham số, không phải năng lực của Replay: đây là công thức
+fine-tune (AdamW 1e-4, 500 bước ở Stage 0, không warmup/scheduler), và accuracy Stage 0 của arm
+này chỉ 56,67% so với 96,67% khi có trọng số pretrained.
+
+**Phần mối đe dọa vẫn còn lại.** Mức ảnh hưởng không thể hạ về Thấp. Hai phép đo trên chỉ chứng
+minh rằng lợi thế lớn nằm ở trọng số ImageNet-21k; chúng **không** cho biết kết quả ấy có còn giữ
+được với miền xa ImageNet, class tinh hay class đa dạng hình thức, vì cả ba tình huống đó đều
+chưa được thử.
 
 **Giới hạn của phép đo.** Arm Stage 0 là giám sát rẻ trong miền (800 ảnh, 2 class, 500 bước tối
 ưu), không phải "không pretrain"; nó so 800 ảnh với 21k class và khoảng 300 triệu ảnh, nên đo ảnh
@@ -225,5 +237,6 @@ pretrained lớn đã được huấn luyện trước đó bằng chi phí rấ
 | NCM đạt accuracy tương đương Replay với chi phí thấp hơn nhiều, trên bộ dữ liệu này | NCM không tốn chi phí |
 | Thất bại của LwF đi kèm việc đoán sai sang class mới | Joint là phương pháp continual learning |
 | Kết quả NCM phụ thuộc nặng vào trọng số ImageNet-21k, đã đo trực tiếp ở mục 4.1 | NCM vẫn mạnh khi miền xa ImageNet |
+| Rehearsal bền hơn prototype đóng băng khi đặc trưng yếu (45,60% so với 25,47%) | Replay không phụ thuộc trọng số pretrained |
 | | ViT không thể huấn luyện từ đầu (arm Stage 0 chỉ underfit với bộ siêu tham số hiện có) |
 | | Arm Stage 0 và arm chưa huấn luyện khác nhau có ý nghĩa thống kê |

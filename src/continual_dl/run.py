@@ -160,6 +160,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--common-config", type=Path, default=Path("configs/common.yaml"))
     parser.add_argument("--strategy-config", type=Path)
+    parser.add_argument(
+        "--init-config",
+        type=Path,
+        help="Overrides merged after the strategy config, e.g. a non-pretrained backbone start",
+    )
     parser.add_argument("--seed", type=int)
     parser.add_argument("--all-seeds", action="store_true")
     parser.add_argument("--device", type=str)
@@ -170,7 +175,7 @@ def main() -> None:
     args = parse_args()
     project_root = Path.cwd()
     strategy_config = args.strategy_config or Path(f"configs/{args.strategy}.yaml")
-    config = load_config(args.common_config, strategy_config)
+    config = load_config(args.common_config, strategy_config, args.init_config)
     if args.device is not None:
         config["device"] = args.device
     if args.all_seeds:

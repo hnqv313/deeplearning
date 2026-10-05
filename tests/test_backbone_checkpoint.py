@@ -6,6 +6,7 @@ import pytest
 import torch
 from torchvision.transforms import Compose, Resize, ToTensor
 
+from continual_dl.config import load_config
 from continual_dl.constants import CLASS_TO_ID
 from continual_dl.data.scenario import build_experiences
 from continual_dl.engine import evaluate_strategy
@@ -155,3 +156,36 @@ def test_ncm_runs_on_a_pretrained_backbone_checkpoint(tiny_manifests, tmp_path: 
     expected = _backbone_state(pretrain_model)
     final_state = _backbone_state(strategy.model)
     assert all(torch.equal(final_state[key], expected[key]) for key in expected)
+
+
+def test_load_config_merges_init_overrides_last(tmp_path: Path) -> None:
+    common = tmp_path / "common.yaml"
+    strategy = tmp_path / "strategy.yaml"
+    init = tmp_path / "init.yaml"
+    common.write_text(
+        "model:\n  backbone: vit_tiny_patch16_224\n  pretrained: true\n  num_classes: 5\n"
+    )
+    strategy.write_text("strategy:\n  name: replay\n  memory_size: 200\n  replay_ratio: 0.5\n")
+    init.write_text(
+        "model:\n  pretrained: false\n  init_checkpoint: outputs/p/seed_{seed}/stage_0.pt\n"
+    )
+
+    merged = load_config(common, strategy, init_path=init)
+
+    assert merged["strategy"] == {"name": "replay", "memory_size": 200, "replay_ratio": 0.5}
+    assert merged["model"]["backbone"] == "vit_tiny_patch16_224"
+    assert merged["model"]["num_classes"] == 5
+    assert merged["model"]["pretrained"] is False
+    assert merged["model"]["init_checkpoint"].endswith("seed_{seed}/stage_0.pt")
+
+
+def test_load_config_without_init_path_keeps_two_file_behaviour(tmp_path: Path) -> None:
+    common = tmp_path / "common.yaml"
+    strategy = tmp_path / "strategy.yaml"
+    common.write_text("model:\n  pretrained: true\n")
+    strategy.write_text("strategy:\n  name: ewc\n")
+
+    merged = load_config(common, strategy)
+
+    assert merged["model"]["pretrained"] is True
+    assert "init_checkpoint" not in merged["model"]
