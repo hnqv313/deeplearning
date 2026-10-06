@@ -155,7 +155,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--strategy",
-        choices=["naive", "joint", "ncm", "replay", "lwf", "ewc"],
+        choices=[
+            "naive",
+            "joint",
+            "ncm",
+            "replay",
+            "lwf",
+            "ewc",
+            "replay_ncm_hybrid",
+        ],
         required=True,
     )
     parser.add_argument("--common-config", type=Path, default=Path("configs/common.yaml"))

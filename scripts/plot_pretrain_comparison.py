@@ -17,8 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-EXPECTED_SEEDS = {42, 123, 2026}
-EXPECTED_STAGES = {0, 1, 2, 3}
+from continual_dl.reporting import load_strategy_summary
 
 ARMS = (
     ("ImageNet-21k pretrained", "#2c3e50"),
@@ -51,38 +50,8 @@ def _stat(row: pd.Series, column: str) -> float:
     return float(row[column])
 
 
-def _load_strategy(directory: Path, label: str, strategy: str) -> tuple[pd.Series, pd.DataFrame]:
-    comparison_path = directory / "comparison.csv"
-    stage_path = directory / "stage_accuracy.csv"
-    for path in (comparison_path, stage_path):
-        if not path.is_file():
-            raise SystemExit(
-                f"Missing {path}.\n"
-                f"Run the experiments for the '{label}' arm, then "
-                "python scripts/summarize_results.py"
-            )
-    comparison = pd.read_csv(comparison_path)
-    stage = pd.read_csv(stage_path)
-    if strategy not in set(comparison["strategy"]):
-        raise SystemExit(f"{comparison_path} has no '{strategy}' row")
-    per_seed = stage[stage["strategy"] == strategy].copy()
-    seeds = set(per_seed["seed"])
-    if seeds != EXPECTED_SEEDS:
-        raise SystemExit(
-            f"{stage_path} '{strategy}' seeds are {sorted(seeds)}, "
-            f"expected {sorted(EXPECTED_SEEDS)}"
-        )
-    observed = per_seed.groupby("seed")["stage"].apply(lambda values: set(values))
-    if any(values != EXPECTED_STAGES for values in observed):
-        raise SystemExit(f"{stage_path} '{strategy}' runs must each contain stages 0-3")
-    values = per_seed["average_accuracy"]
-    if ((values < 0) | (values > 1)).any():
-        raise SystemExit(f"{stage_path} contains accuracy outside [0, 1]")
-    return comparison[comparison["strategy"] == strategy].iloc[0], per_seed
-
-
 def _load(directory: Path, label: str) -> tuple[pd.Series, pd.DataFrame]:
-    return _load_strategy(directory, label, "ncm")
+    return load_strategy_summary(directory, label, "ncm")
 
 
 def _mean_row(comparison: pd.Series) -> pd.Series:
@@ -221,8 +190,8 @@ def main() -> None:
     save_stage_accuracy([pretrained_stage, stage0_stage, random_stage], args.output_dir)
     save_runtime(rows, _pretraining_seconds(args.stage0_pretrain_dir), args.output_dir)
 
-    pretrained_replay, _ = _load_strategy(args.pretrained_dir, "ImageNet-21k pretrained", "replay")
-    stage0_replay, _ = _load_strategy(args.scratch_dir, "stage 0", "replay")
+    pretrained_replay, _ = load_strategy_summary(args.pretrained_dir, "ImageNet-21k pretrained", "replay")
+    stage0_replay, _ = load_strategy_summary(args.scratch_dir, "stage 0", "replay")
     save_method_comparison(
         [pretrained_ncm, stage0_ncm, pretrained_replay, stage0_replay], args.output_dir
     )

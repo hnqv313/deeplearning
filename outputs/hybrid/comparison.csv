@@ -1,0 +1,2 @@
+strategy,final_average_accuracy_mean,final_average_accuracy_std,average_incremental_accuracy_mean,average_incremental_accuracy_std,mean_forgetting_mean,mean_forgetting_std,mean_backward_transfer_mean,mean_backward_transfer_std,total_seconds_mean,total_seconds_std,peak_gpu_memory_mib_mean,peak_gpu_memory_mib_std
+replay_ncm_hybrid,0.956000000,0.010583005,0.954972222,0.004027969,0.028333333,0.018929694,-0.015000000,0.013228757,637.561531143,23.820659208,644.669921875,0.000000000

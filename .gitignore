@@ -44,6 +44,13 @@ outputs/scratch_random/*
 !outputs/scratch_random/stage_accuracy.csv
 !outputs/pretrain_figures/
 !outputs/pretrain_figures/*.png
+!outputs/hybrid/
+outputs/hybrid/*
+!outputs/hybrid/comparison.csv
+!outputs/hybrid/per_seed_results.csv
+!outputs/hybrid/stage_accuracy.csv
+!outputs/hybrid_figures/
+!outputs/hybrid_figures/*.png
 *.pt
 *.pth
 *.zip

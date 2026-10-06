@@ -57,6 +57,8 @@ toàn bộ dữ liệu thì tốn kém, và nhiều khi không làm được vì
    nguồn khởi tạo backbone trả lời câu này (mục 4.5).
 5. Phương pháp gradient duy nhất đang hoạt động (Replay) có sống sót khi mất trọng số
    pretrained không, và rehearsal có bền hơn prototype đóng băng không (mục 4.6)?
+6. Kết hợp rehearsal với đầu prototype (mục 3.8) có tốt hơn cả hai phương pháp gốc không,
+   trên cả hai nguồn backbone (mục 4.7)?
 
 ### 1.3. Đóng góp của đồ án
 
@@ -71,6 +73,8 @@ toàn bộ dữ liệu thì tốn kém, và nhiều khi không làm được vì
   cùng mã đánh giá và cùng seed.
 - Một phép đo tiếp theo trên cùng checkpoint Stage 0, so Replay với NCM (mục 4.6), cho phép
   so sánh rehearsal với biểu diễn đóng băng khi đặc trưng yếu.
+- Một phương pháp kết hợp do đồ án cài đặt, Replay + NCM hybrid (mục 3.8), đạt kết quả tốt nhất
+  trong cả hai cấu hình backbone (mục 4.7) và vượt mốc trên Joint về final accuracy.
 
 Đồ án **không** đề xuất phương pháp mới. Việc NCM trên đặc trưng pretrained là baseline mạnh
 đã được ghi nhận trong tài liệu [21, 22].
@@ -235,6 +239,25 @@ trên các class đã thấy. Vì test set cân bằng (50 ảnh/class), `A_k` b
 
 Kết quả được báo dưới dạng trung bình ± độ lệch chuẩn mẫu trên 3 seed.
 
+### 3.8. Replay + NCM hybrid
+
+Đây là phương pháp duy nhất do đồ án cài đặt, ghép phần học biểu diễn của Replay với đầu phân
+loại của NCM. Mỗi stage *k*:
+
+1. Replay fine-tune backbone trên dữ liệu stage *k* và bộ nhớ 200 ảnh. Head 5 output và
+   cross-entropy được giữ nguyên trong bước này vì đó là tín hiệu gradient để backbone học.
+2. Đóng băng backbone sau khi huấn luyện.
+3. Dựng lại prototype cho **mọi** class đã thấy bằng backbone vừa đóng băng, lấy ảnh từ bộ nhớ.
+4. Dự đoán bằng cosine similarity tới prototype, mask logit chưa thấy.
+
+Hai quyết định thiết kế cần nêu rõ. Thứ nhất, prototype **buộc phải dựng lại ở mỗi stage**: nếu
+tích lũy đặc trưng qua các stage thì prototype của class cũ đến từ backbone thời điểm trước còn
+class mới đến từ backbone hiện tại, và cosine so sánh giữa hai không gian đặc trưng khác nhau là
+vô nghĩa. Thứ hai, prototype **chỉ lấy từ bộ nhớ** chứ không lấy toàn bộ dữ liệu của class mới,
+để mọi class ở mọi stage dùng cùng một loại ước lượng; hệ quả là prototype dựa trên 40–100 ảnh
+thay vì 400 ảnh/class như arm NCM. Bộ nhớ 200 ảnh và tỉ lệ 0,5 giữ nguyên như Replay, nên hybrid
+không phát sinh thêm bộ nhớ phụ.
+
 ---
 
 ## 4. Kết quả
@@ -253,7 +276,7 @@ Kết quả được báo dưới dạng trung bình ± độ lệch chuẩn m�
 Peak GPU memory giống hệt nhau giữa các seed của cùng phương pháp (độ lệch chuẩn 0).
 
 Hàng cuối cùng dùng backbone pretrained ImageNet-21k. Ba arm so sánh nguồn khởi tạo backbone
-(mục 3.4) được báo cáo riêng ở mục 4.5 và 4.6.
+(mục 3.4) được báo cáo riêng ở mục 4.5, 4.6 và 4.7.
 
 ![Final accuracy](../../outputs/final_figures/final_accuracy.png)
 *Hình 1. Final accuracy trên 5 class.*
@@ -404,6 +427,61 @@ arm không pretrained đều vẫn cao hơn EWC và LwF, vốn chỉ đạt 20,0
 nửa, và forgetting tăng từ 8,50% lên 39,00%. Thêm vào đó con số 45,60% phải đọc là sàn do bộ
 siêu tham số, không phải năng lực của Replay: đây là công thức fine-tune (AdamW 1e-4, 500 bước ở
 Stage 0), và accuracy Stage 0 của arm này chỉ 56,67% so với 96,67% của arm pretrained.
+
+---
+
+### 4.7. Kết hợp Replay + NCM
+
+Đồ án cài đặt một phương pháp kết hợp: Replay huấn luyện backbone, sau đó prototype của mọi
+class đã thấy được dựng lại bằng backbone của chính stage đó, và dự đoán bằng cosine similarity.
+Bộ nhớ 200 ảnh và tỉ lệ replay giữ nguyên như Replay, nên hai phương pháp chỉ khác nhau ở đầu
+phân loại.
+
+| Backbone | Phương pháp | Final accuracy (%) | Forgetting (%) | Thời gian (s) | Peak GPU (MiB) |
+|---|---|---:|---:|---:|---:|
+| ImageNet-21k | Replay+NCM hybrid | 95,60 ± 1,06 | 2,83 ± 1,89 | 637,6 | 644,7 |
+| ImageNet-21k | Joint (mốc trên) | 95,20 ± 1,39 | 3,00 ± 1,80 | 1247,1 | 645,8 |
+| ImageNet-21k | NCM | 92,67 ± 0,46 | 2,67 ± 0,58 | 42,1 | 104,2 |
+| ImageNet-21k | Replay | 91,20 ± 5,01 | 8,50 ± 5,57 | 762,6 | 645,8 |
+| Stage 0 | Replay+NCM hybrid | 53,47 ± 4,28 | 14,00 ± 2,65 | 725,0 | 644,7 |
+| Stage 0 | Replay | 45,60 ± 4,33 | 39,00 ± 5,89 | 580,2 | 644,7 |
+| Stage 0 | NCM | 25,47 ± 1,40 | 21,83 ± 4,80 | 51,2 | 103,2 |
+
+Accuracy trên các class đã thấy qua từng stage (%):
+
+| Stage | Số class đã thấy | Hybrid ImageNet | Hybrid Stage 0 | Replay ImageNet | NCM ImageNet |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 2 | 94,33 | 48,00 | 96,67 | 91,00 |
+| 1 | 3 | 96,22 | 68,00 | 95,56 | 94,00 |
+| 2 | 4 | 95,83 | 59,17 | 93,00 | 93,67 |
+| 3 | 5 | 95,60 | 53,47 | 91,20 | 92,67 |
+
+Theo seed, final accuracy của arm ImageNet là 94,40; 96,40; 96,00; của arm Stage 0 là 54,40;
+57,20; 48,80.
+
+![So sánh hybrid](../../outputs/hybrid_figures/hybrid_backbone_comparison.png)
+*Hình 11. Final accuracy và forgetting của NCM, Replay và hybrid trên hai nguồn backbone.*
+
+**Trên backbone ImageNet-21k, đây là phương pháp mạnh nhất được đo, kể cả so với mốc trên
+Joint.** 95,60% so với 95,20%, chênh 0,40 điểm nằm trong cả hai độ lệch chuẩn nên hai mốc không
+phân biệt được. Nhưng nó phân biệt được với hai phương pháp gốc: +2,93 điểm so với NCM và +4,40
+so với Replay, với khoảng theo seed không chồng lấn. Nó đạt mức đó trong 637,6 s, khoảng một nửa
+thời gian của Joint, và độ lệch chuẩn chỉ 1,06 điểm so với 5,01 của Replay.
+
+**Trên backbone Stage 0, nó hơn Replay 7,87 điểm và giảm forgetting 25 điểm.** 53,47% so với
+45,60%, forgetting từ 39,00% xuống 14,00%. Đây là kết quả rõ nhất của phép so sánh và xác nhận
+giả thuyết mà arm được dựng để kiểm chứng: khi đặc trưng yếu, phần lớn mất mát của Replay đến từ
+đầu softmax bị dịch về class mới thêm, không phải từ bản thân biểu diễn.
+
+**Tuyên bố "mốc trên" của Joint không đúng với final accuracy.** Hybrid vượt nó trong khi vẫn là
+một phương pháp continual hợp lệ, vì đầu softmax tích lũy vẫn thiên lệch về class mới thêm ngay
+cả khi có đủ dữ liệu. Đầu prototype loại bỏ thiên lệch đó.
+
+**Giới hạn của kết quả này.** Prototype của hybrid chỉ dựng từ 40–100 ảnh bộ nhớ, trong khi arm
+NCM dùng đủ 400 ảnh/class — nên lợi thế của hybrid nằm ở sự kết hợp, không phải ở prototype
+chính xác hơn. Chênh 0,40 điểm so với Joint không có ý nghĩa thống kê với 3 seed. Và chi phí
+dựng lại prototype không tách được khỏi chênh lệch giữa các session GPU: `training_seconds` mỗi
+stage của hybrid cao hơn Replay khoảng 25%, nhưng bước dựng lại chỉ là 200 ảnh forward mỗi stage.
 
 ---
 

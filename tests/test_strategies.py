@@ -40,7 +40,9 @@ def make_config(strategy_name: str) -> dict:
     }
 
 
-@pytest.mark.parametrize("strategy_name", ["naive", "joint", "ncm", "replay", "lwf", "ewc"])
+@pytest.mark.parametrize(
+    "strategy_name", ["naive", "joint", "ncm", "replay", "lwf", "ewc", "replay_ncm_hybrid"]
+)
 def test_strategy_two_stage_smoke(tiny_manifests, strategy_name):
     transform = Compose([Resize((32, 32)), ToTensor()])
     experiences = build_experiences(

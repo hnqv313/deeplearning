@@ -175,6 +175,19 @@ Con số 45,60% là sàn do bộ siêu tham số, không phải năng lực củ
 fine-tune (AdamW 1e-4, 500 bước ở Stage 0, không warmup/scheduler), và accuracy Stage 0 của arm
 này chỉ 56,67% so với 96,67% khi có trọng số pretrained.
 
+**Hybrid Replay + NCM.** Phương pháp kết hợp ở mục 4.7 đạt 95,60% trên backbone ImageNet-21k
+và 53,47% trên backbone Stage 0. Kết quả này **củng cố** kết luận trên ở một hướng khác: nó cho
+thấy phần lớn mất mát của Replay đến từ đầu softmax chứ không từ biểu diễn, vì thay đầu phân loại
+bằng prototype đã giảm forgetting trên backbone yếu từ 39,00% xuống 14,00%.
+
+Ba giới hạn riêng của phép đo này. Thứ nhất, prototype của hybrid chỉ dựng từ 40–100 ảnh bộ nhớ
+trong khi arm NCM dùng đủ 400 ảnh/class, nên lợi thế nằm ở sự kết hợp chứ không ở prototype chính
+xác hơn. Thứ hai, chênh 0,40 điểm so với mốc trên Joint nằm trong cả hai độ lệch chuẩn, nên không
+được nói hybrid vượt Joint về mặt thống kê; chỉ được nói nó ngang bằng Joint trong khoảng một nửa
+thời gian. Thứ ba, chi phí dựng lại prototype không tách được khỏi chênh lệch giữa các session
+GPU: `training_seconds` mỗi stage cao hơn Replay khoảng 25%, nhưng bước dựng lại chỉ là 200 ảnh
+forward mỗi stage, nên không thể quy chênh lệch đó cho nó. Ba seed, không kiểm định thống kê.
+
 **Phần mối đe dọa vẫn còn lại.** Mức ảnh hưởng không thể hạ về Thấp. Hai phép đo trên chỉ chứng
 minh rằng lợi thế lớn nằm ở trọng số ImageNet-21k; chúng **không** cho biết kết quả ấy có còn giữ
 được với miền xa ImageNet, class tinh hay class đa dạng hình thức, vì cả ba tình huống đó đều
@@ -238,5 +251,7 @@ pretrained lớn đã được huấn luyện trước đó bằng chi phí rấ
 | Thất bại của LwF đi kèm việc đoán sai sang class mới | Joint là phương pháp continual learning |
 | Kết quả NCM phụ thuộc nặng vào trọng số ImageNet-21k, đã đo trực tiếp ở mục 4.1 | NCM vẫn mạnh khi miền xa ImageNet |
 | Rehearsal bền hơn prototype đóng băng khi đặc trưng yếu (45,60% so với 25,47%) | Replay không phụ thuộc trọng số pretrained |
+| Kết hợp Replay với đầu prototype tốt hơn cả hai phương pháp gốc trên cả hai backbone | Hybrid vượt mốc trên Joint về mặt thống kê |
+| Hybrid ngang bằng Joint với khoảng một nửa thời gian, và vẫn là phương pháp continual hợp lệ | Hybrid là phương pháp continual tốt nhất có thể |
 | | ViT không thể huấn luyện từ đầu (arm Stage 0 chỉ underfit với bộ siêu tham số hiện có) |
 | | Arm Stage 0 và arm chưa huấn luyện khác nhau có ý nghĩa thống kê |

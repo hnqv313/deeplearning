@@ -1,0 +1,8 @@
+# Strategy settings for the Replay + NCM hybrid.
+#
+# `memory_size` and `replay_ratio` match `configs/replay.yaml` so the hybrid and
+# Replay differ only in the classification head.
+strategy:
+  name: replay_ncm_hybrid
+  memory_size: 200
+  replay_ratio: 0.5

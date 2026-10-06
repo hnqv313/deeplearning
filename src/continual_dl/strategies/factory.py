@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .ewc import EWCStrategy
+from .hybrid import ReplayNCMHybridStrategy
 from .joint import JointStrategy
 from .lwf import LwFStrategy
 from .naive import NaiveStrategy
@@ -17,6 +18,7 @@ STRATEGIES = {
     "replay": ReplayStrategy,
     "lwf": LwFStrategy,
     "ewc": EWCStrategy,
+    "replay_ncm_hybrid": ReplayNCMHybridStrategy,
 }
 
 

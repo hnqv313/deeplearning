@@ -6,42 +6,54 @@ approximate offline upper bound.
 
 ## Method selection
 
-Mean ± std across seeds 42, 123 and 2026. The first six rows share one ImageNet-21k
-backbone; the last three replace it.
+Mean ± std across seeds 42, 123 and 2026. The ImageNet-21k rows share one
+backbone; the Stage 0 rows replace it with a ViT pre-trained on the first stage
+only, and the last row is an untrained ViT.
 
 | Method | Backbone | Final accuracy (%) | Forgetting (%) | Time (s) | Peak GPU (MiB) |
 |---|---|---:|---:|---:|---:|
+| Replay+NCM hybrid | ImageNet-21k | 95.60 ± 1.06 | 2.83 ± 1.89 | 638 | 645 |
+| Joint | ImageNet-21k | 95.20 ± 1.39 | 3.00 ± 1.80 | 1247 | 646 |
 | NCM | ImageNet-21k | 92.67 ± 0.46 | 2.67 ± 0.58 | 42 | 104 |
 | Replay | ImageNet-21k | 91.20 ± 5.01 | 8.50 ± 5.57 | 763 | 646 |
 | Naive | ImageNet-21k | 20.00 ± 0.00 | 96.67 ± 1.04 | 501 | 646 |
 | EWC | ImageNet-21k | 20.00 ± 0.00 | 96.83 ± 0.76 | 552 | 1039 |
 | LwF | ImageNet-21k | 20.00 ± 0.00 | 97.67 ± 0.76 | 491 | 683 |
-| Joint | ImageNet-21k | 95.20 ± 1.39 | 3.00 ± 1.80 | 1247 | 646 |
+| Replay+NCM hybrid | pre-trained on stage 0 only | 53.47 ± 4.28 | 14.00 ± 2.65 | 725 | 645 |
 | Replay | pre-trained on stage 0 only | 45.60 ± 4.33 | 39.00 ± 5.89 | 766 | 645 |
 | NCM | pre-trained on stage 0 only | 25.47 ± 1.40 | 21.83 ± 4.80 | 237 | 645 |
 | NCM | untrained | 23.47 ± 1.01 | 22.67 ± 2.02 | 51 | 103 |
 
-The two stage 0 rows include the 185 s / 645 MiB pre-training step that produces
-their backbone; that checkpoint is produced once and shared between them.
+The Stage 0 rows include the 185 s / 645 MiB pre-training step that produces
+their backbone; that checkpoint is produced once and shared across them.
 
-Of the six methods, only NCM and Replay rise above the 20.00% chance level of a
-five-class problem. Their final accuracies are not separable on this protocol:
-92.67 ± 0.46 against 91.20 ± 5.01, a 1.47-point difference smaller than Replay's
-spread across seeds, and the ordering changes with the seed. On the remaining
-axes NCM is the more effective of the two — 42 s against 763 s wall time, 104 MiB
-against 646 MiB peak GPU memory, 2.67% against 8.50% forgetting, and one stored
-vector per class against 200 stored images.
+Replay+NCM hybrid trains the backbone with Replay and classifies with NCM
+prototypes. It is the most effective method measured on both backbones. On
+ImageNet it reaches 95.60%, above the Joint reference at 95.20%; the 0.40-point
+difference is inside both standard deviations, so the two are not separable, but
+the hybrid does it in 638 s against 1247 s and remains a valid continual method.
+It is separable from its parents — 2.93 points over NCM and 4.40 over Replay,
+with no overlap between per-seed ranges — and its spread across seeds is 1.06
+points against Replay's 5.01.
+
+On the Stage 0 backbone the hybrid gains 7.87 points over Replay and cuts
+forgetting from 39.00% to 14.00%. Both parents stay far below: NCM at 25.47% and
+Replay at 45.60%. This indicates that on a weak backbone most of Replay's loss
+came from the softmax head shifting towards newly added classes rather than from
+the representation.
 
 EWC, LwF and naive fine-tuning all terminate at 20.00% on every seed, so at the
 tested configurations neither parameter regularization nor logit distillation
 improves on plain fine-tuning, and EWC additionally costs 10% more wall time than
-it does. Joint reaches 95.20% but reuses all previous data and is not a continual
-method.
+it does.
 
-This comparison holds only while the backbone is pre-trained. On a backbone
-trained solely on the first stage, NCM falls to 25.47% while Replay on the same
-checkpoint reaches 45.60%, which reverses the ordering. Measured values per arm
-are in [`RESULTS.md`](RESULTS.md); the threats to this comparison are in
+NCM remains the cheapest option by a wide margin when a pretrained backbone is
+available and only 2.93 accuracy points are at stake: 42 s and 104 MiB against
+the hybrid's 638 s and 645 MiB, storing one vector per class instead of 200
+images.
+
+Measured values per arm are in [`RESULTS.md`](RESULTS.md); the threats to this
+comparison are in
 [`docs/report/LIMITATIONS_AND_THREATS.md`](docs/report/LIMITATIONS_AND_THREATS.md).
 
 ## Protocol
@@ -264,7 +276,7 @@ from scratch either, because the recipe used here is the fine-tuning one. See
 - Final clean dataset: 2,500 crops, exactly 500 per class.
 - Split: 2,000 train, 250 validation, 250 test; no missing files, duplicate
   hash leakage, or source-image leakage across splits.
-- All six strategy paths complete the four-stage smoke test.
+- All seven strategy paths complete the four-stage smoke test.
 - The final Colab matrix is complete: six methods × three seeds = 18 T4 runs.
 - All 18 summaries and 72 stage JSON files are mirrored in
   `outputs/colab_runs`; aggregate CSVs are generated directly from them.
@@ -276,6 +288,10 @@ from scratch either, because the recipe used here is the fine-tuning one. See
 - Replay on the same Stage 0 backbone reaches 45.60%, against 91.20% with
   ImageNet weights. Rehearsal is the more robust of the two when features are
   weak, but both lose more than half their accuracy without pre-training.
+- The Replay + NCM hybrid is complete: three seeds on each backbone. It reaches
+  95.60% on ImageNet-21k, matching the Joint reference in half the wall time, and
+  53.47% on the Stage 0 backbone against Replay's 45.60%, with forgetting falling
+  from 39.00% to 14.00%.
 - See [`RESULTS.md`](RESULTS.md) for complete mean ± standard deviation tables,
   stage curves, timing and interpretation.
 
@@ -297,7 +313,43 @@ average over Dog, Cat, Car and Person. These are class-level variants, not the
 task-level definitions used by many continual-learning papers; Dog and Cat
 therefore contribute separately even though both arrive in Stage 0.
 
-## 6. Tests
+## 6. Replay + NCM hybrid
+
+`replay_ncm_hybrid` trains the backbone with Replay, then rebuilds every class
+prototype from the memory buffer using that stage's backbone and predicts by
+cosine similarity. It keeps Replay's representation learning and NCM's
+prototype head, so no new method storage is introduced.
+
+```powershell
+# ImageNet-21k backbone
+python -m continual_dl.run --strategy replay_ncm_hybrid --common-config configs/hybrid_common.yaml --all-seeds
+
+# Stage 0 pre-trained backbone
+python -m continual_dl.run --strategy replay_ncm_hybrid --common-config configs/scratch.yaml --init-config configs/init_stage0_backbone.yaml --all-seeds
+```
+
+`configs/hybrid_common.yaml` differs from `configs/common.yaml` only in
+`evaluation.output_dir`. The hybrid must not write into the published `outputs/`
+tree, because the next `summarize_results.py` run there would rewrite the
+committed six-method CSVs with seven methods and break
+`scripts/plot_final_results.py`.
+
+```powershell
+python scripts/summarize_results.py --outputs outputs/hybrid --output-csv outputs/hybrid/comparison.csv
+python scripts/summarize_results.py --outputs outputs/scratch --output-csv outputs/scratch/comparison.csv
+python scripts/plot_hybrid_comparison.py
+```
+
+Prototypes are rebuilt at every stage rather than accumulated, because features
+taken from different backbone versions cannot be compared by cosine similarity.
+The consequence is that a prototype is estimated from the 40 to 100 buffer
+images available at that stage, whereas the NCM arm uses all 400 training crops
+per class.
+
+Results for both arms are in `RESULTS.md`, and the two-backbone figure is
+`outputs/hybrid_figures/hybrid_backbone_comparison.png`.
+
+## 7. Tests
 
 The tests use generated 32×32 images and the local `tiny_cnn` smoke-test
 backbone; they do not download pretrained weights or datasets.

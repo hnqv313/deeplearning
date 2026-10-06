@@ -1,4 +1,4 @@
-# Dàn ý thuyết trình (14 slide, khoảng 14–17 phút)
+# Dàn ý thuyết trình (15 slide, khoảng 15–18 phút)
 
 Số liệu lấy từ `RESULTS.md` và `outputs/*.csv`. Hình lấy từ `outputs/final_figures/`.
 `[TODO]` là chỗ nhóm cần điền.
@@ -190,7 +190,35 @@ không?". Câu trả lời: có, nhưng nó vẫn học được điều gì đ�
 
 ---
 
-## Slide 12. Chi phí
+## Slide 12. Kết hợp Replay + NCM: phương pháp mạnh nhất
+
+- Replay huấn luyện backbone, NCM phân loại bằng prototype. Bộ nhớ và tỉ lệ replay giữ nguyên
+  như Replay, chỉ đổi đầu phân loại
+
+| Backbone | Phương pháp | Final accuracy (%) | Forgetting (%) | Thời gian (s) |
+|---|---|---:|---:|---:|
+| ImageNet-21k | **Replay+NCM hybrid** | **95,60 ± 1,06** | 2,83 ± 1,89 | 638 |
+| ImageNet-21k | Joint (mốc trên) | 95,20 ± 1,39 | 3,00 ± 1,80 | 1247 |
+| ImageNet-21k | NCM | 92,67 ± 0,46 | 2,67 ± 0,58 | 42 |
+| ImageNet-21k | Replay | 91,20 ± 5,01 | 8,50 ± 5,57 | 763 |
+| Stage 0 | **Replay+NCM hybrid** | **53,47 ± 4,28** | **14,00 ± 2,65** | 725 |
+| Stage 0 | Replay | 45,60 ± 4,33 | 39,00 ± 5,89 | 580 |
+| Stage 0 | NCM | 25,47 ± 1,40 | 21,83 ± 4,80 | 51 |
+
+- Hình: `hybrid_backbone_comparison.png`
+- **Kết quả chính**: trên backbone yếu, hybrid hơn Replay 7,87 điểm và giảm forgetting từ
+  39,00% xuống 14,00% → phần lớn mất mát của Replay đến từ **đầu softmax**, không phải từ biểu diễn
+- Trên ImageNet, hybrid đạt 95,60%, **ngang bằng mốc trên Joint** (chênh 0,40 điểm nằm trong độ
+  lệch chuẩn) nhưng chỉ tốn khoảng một nửa thời gian và vẫn là phương pháp continual hợp lệ
+- Prototype chỉ dựng từ 40–100 ảnh bộ nhớ (NCM dùng đủ 400/class), nên lợi thế nằm ở sự kết hợp
+  chứ không ở prototype chính xác hơn
+
+**Ghi chú:** Đây là đóng góp phương pháp duy nhất của đồ án. Nhấn mạnh Joint không còn là mốc
+trên chặt về final accuracy: đầu softmax tích lũy vẫn thiên lệch về class mới thêm.
+
+---
+
+## Slide 13. Chi phí
 
 - Hình: `runtime.png` và `gpu_memory.png`
 - Thời gian phụ thuộc cấu hình epoch; NCM không có bước huấn luyện nào
@@ -203,7 +231,7 @@ không?". Câu trả lời: có, nhưng nó vẫn học được điều gì đ�
 
 ---
 
-## Slide 13. Hạn chế
+## Slide 14. Hạn chế
 
 - Huấn luyện GPU không tất định: Stage 0 giống hệt nhau mà dao động tới 8 điểm (seed 42)
 - 3 seed, test 50 ảnh/class, không kiểm định thống kê
@@ -214,13 +242,15 @@ không?". Câu trả lời: có, nhưng nó vẫn học được điều gì đ�
 
 ---
 
-## Slide 14. Kết luận và hướng phát triển
+## Slide 15. Kết luận và hướng phát triển
 
 - Naive quên hoàn toàn; EWC, LwF (cấu hình đã thử) không cứu được trong class-incremental một-head
 - Replay hiệu quả nhưng tốn lưu trữ và biến thiên; NCM rẻ, ổn định, **nhưng phụ thuộc miền
   pretrain**
 - Cả Replay lẫn NCM đều mất phần lớn accuracy khi bỏ trọng số pretrained (91,20→45,60 và
   92,67→25,47), nhưng Replay vẫn học được khi backbone yếu, NCM thì không
+- Kết hợp Replay + NCM là phương pháp mạnh nhất: ngang bằng mốc trên Joint với một nửa thời gian,
+  và hơn Replay 7,87 điểm trên backbone yếu
 - Hướng tiếp: tinh chỉnh `λ`, `α`; thêm hiệu chỉnh bias (BiC, WA); herding cho Replay; miền dữ
   liệu xa ImageNet; chạy tất định và nhiều seed hơn
 

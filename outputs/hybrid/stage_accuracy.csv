@@ -1,0 +1,13 @@
+strategy,seed,stage,seen_classes,average_accuracy
+replay_ncm_hybrid,123,0,2,0.960000000
+replay_ncm_hybrid,123,1,3,0.940000000
+replay_ncm_hybrid,123,2,4,0.970000000
+replay_ncm_hybrid,123,3,5,0.964000000
+replay_ncm_hybrid,2026,0,2,0.940000000
+replay_ncm_hybrid,2026,1,3,0.973333333
+replay_ncm_hybrid,2026,2,4,0.950000000
+replay_ncm_hybrid,2026,3,5,0.960000000
+replay_ncm_hybrid,42,0,2,0.930000000
+replay_ncm_hybrid,42,1,3,0.973333333
+replay_ncm_hybrid,42,2,4,0.955000000
+replay_ncm_hybrid,42,3,5,0.944000000

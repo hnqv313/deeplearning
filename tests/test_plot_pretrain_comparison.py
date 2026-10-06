@@ -6,9 +6,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from continual_dl.reporting import load_strategy_summary
 from scripts.plot_pretrain_comparison import (
     _load,
-    _load_strategy,
     _pretraining_seconds,
     save_final_accuracy,
 )
@@ -153,7 +153,7 @@ def _write_arm_with_replay(directory: Path, ncm_acc: float, replay_acc: float) -
 def test_load_strategy_returns_requested_strategy(tmp_path: Path) -> None:
     directory = _write_arm_with_replay(tmp_path / "arm", 0.9, 0.4)
 
-    row, per_seed = _load_strategy(directory, "stage 0", "replay")
+    row, per_seed = load_strategy_summary(directory, "stage 0", "replay")
 
     assert row["strategy"] == "replay"
     assert len(per_seed) == len(SEEDS) * len(STAGES)
@@ -164,17 +164,17 @@ def test_load_strategy_rejects_unknown_strategy(tmp_path: Path) -> None:
     directory = _write_arm_with_replay(tmp_path / "arm", 0.9, 0.4)
 
     with pytest.raises(SystemExit, match="no 'ewc' row"):
-        _load_strategy(directory, "stage 0", "ewc")
+        load_strategy_summary(directory, "stage 0", "ewc")
 
 
 def test_save_method_comparison_writes_figure(tmp_path: Path) -> None:
     from scripts.plot_pretrain_comparison import save_method_comparison
 
     rows = [
-        _load_strategy(_write_arm_with_replay(tmp_path / "a", 0.9, 0.9), "pretrained", "ncm")[0],
-        _load_strategy(_write_arm_with_replay(tmp_path / "b", 0.25, 0.45), "stage 0", "ncm")[0],
-        _load_strategy(_write_arm_with_replay(tmp_path / "c", 0.9, 0.9), "pretrained", "replay")[0],
-        _load_strategy(_write_arm_with_replay(tmp_path / "d", 0.25, 0.45), "stage 0", "replay")[0],
+        load_strategy_summary(_write_arm_with_replay(tmp_path / "a", 0.9, 0.9), "pretrained", "ncm")[0],
+        load_strategy_summary(_write_arm_with_replay(tmp_path / "b", 0.25, 0.45), "stage 0", "ncm")[0],
+        load_strategy_summary(_write_arm_with_replay(tmp_path / "c", 0.9, 0.9), "pretrained", "replay")[0],
+        load_strategy_summary(_write_arm_with_replay(tmp_path / "d", 0.25, 0.45), "stage 0", "replay")[0],
     ]
 
     save_method_comparison(rows, tmp_path)
